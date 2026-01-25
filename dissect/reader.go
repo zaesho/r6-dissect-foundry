@@ -46,7 +46,8 @@ func NewReader(in io.Reader) (r *Reader, err error) {
 	}
 	log.Debug().Bool("chunkedCompression (>=Y8S4)", chunkedCompression).Send()
 	r = &Reader{
-		readPartial: false,
+		readPartial:            false,
+		lastDefuserPlayerIndex: -1,
 	}
 	if chunkedCompression {
 		if err = r.readChunkedData(br); err != nil {

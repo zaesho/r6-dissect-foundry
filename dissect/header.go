@@ -118,6 +118,7 @@ const (
 	BorderY10           Map = 407987100456
 	ChaletY10           Map = 407558616688
 	ClubHouseY10        Map = 407193663917
+	FortressY10         Map = 398899676157
 	KafeDostoyevskyY10  Map = 413845419788
 	LairY10             Map = 417890697769
 	NighthavenLabsY10   Map = 418119057546

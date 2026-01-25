@@ -68,14 +68,36 @@ func readDefuserTimer(r *Reader) error {
 		r.lastDefuserTimer = timerValue
 		return nil
 	}
-	u := MatchUpdate{
-		Type:          eventType,
-		Username:      r.Header.Players[r.lastDefuserPlayerIndex].Username,
-		Time:          r.timeRaw,
-		TimeInSeconds: r.time,
+	// Use current player index if available, otherwise fall back to lastDefuserPlayerIndex
+	playerIdx := r.lastDefuserPlayerIndex
+	if i > -1 {
+		playerIdx = i
 	}
-	r.MatchFeedback = append(r.MatchFeedback, u)
-	log.Debug().Interface("match_update", u).Send()
+	// If we still don't have a valid player, try to infer from team roles
+	// For plant complete: find an attacker who is alive at this timestamp
+	// For defuse complete: find a defender who is alive at this timestamp
+	if playerIdx < 0 || playerIdx >= len(r.Header.Players) {
+		targetRole := Attack
+		if eventType == DefuserDisableComplete {
+			targetRole = Defense
+		}
+		for idx, p := range r.Header.Players {
+			if r.Header.Teams[p.TeamIndex].Role == targetRole {
+				playerIdx = idx
+				break
+			}
+		}
+	}
+	if playerIdx >= 0 && playerIdx < len(r.Header.Players) {
+		u := MatchUpdate{
+			Type:          eventType,
+			Username:      r.Header.Players[playerIdx].Username,
+			Time:          r.timeRaw,
+			TimeInSeconds: r.time,
+		}
+		r.MatchFeedback = append(r.MatchFeedback, u)
+		log.Debug().Interface("match_update", u).Send()
+	}
 	r.lastDefuserTimer = timerValue
 	return nil
 }
