@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R6 Movement 3D Visualizer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a1a; 
+            color: #eee;
+            overflow: hidden;
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        #canvas3d {
+            display: block;
+        }
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 15px;
+            background: linear-gradient(to bottom, rgba(10,10,26,0.95), rgba(10,10,26,0));
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay > * {
+            pointer-events: auto;
+        }
+        h1 {
+            font-size: 20px;
+            color: #00d4ff;
+            margin-bottom: 10px;
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        input[type="file"] {
+            background: #1a1a3a;
+            border: 2px dashed #333;
+            padding: 10px 15px;
+            color: #eee;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        input[type="file"]:hover {
+            border-color: #00d4ff;
+        }
+        .playback {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            background: rgba(30,30,60,0.8);
+            padding: 10px 15px;
+            border-radius: 8px;
+        }
+        button {
+            background: #00d4ff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #000;
+        }
+        button:hover {
+            background: #00b8e6;
+        }
+        input[type="range"] {
+            width: 200px;
+        }
+        select, .checkbox-label {
+            padding: 6px 10px;
+            background: #1a1a3a;
+            color: #eee;
+            border: 1px solid #333;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            font-size: 12px;
+            color: #888;
+        }
+        .stat-value {
+            color: #00d4ff;
+            font-weight: bold;
+        }
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(20,20,40,0.9);
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 10;
+        }
+        .legend h3 {
+            font-size: 14px;
+            color: #00d4ff;
+            margin-bottom: 10px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            padding: 5px;
+            border-radius: 4px;
+            background: rgba(0,0,0,0.3);
+        }
+        .legend-icon {
+            width: 24px;
+            height: 24px;
+        }
+        .legend-item.attacker .legend-icon {
+            filter: brightness(0) saturate(100%) invert(57%) sepia(75%) saturate(1500%) hue-rotate(340deg) brightness(100%) contrast(100%);
+        }
+        .legend-item.defender .legend-icon {
+            filter: brightness(0) saturate(100%) invert(70%) sepia(50%) saturate(500%) hue-rotate(150deg) brightness(100%) contrast(100%);
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .legend-info {
+            font-size: 11px;
+        }
+        .legend-name {
+            font-weight: bold;
+        }
+        .legend-op {
+            color: #888;
+            font-size: 10px;
+        }
+        .legend-loadout {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-top: 3px;
+        }
+        .loadout-tag {
+            padding: 1px 4px;
+            border-radius: 3px;
+            border: 1px solid #333;
+            font-size: 9px;
+            white-space: nowrap;
+        }
+        .loadout-tag.primary { border-color: #ff9f43; color: #ff9f43; }
+        .loadout-tag.secondary { border-color: #74b9ff; color: #74b9ff; }
+        .loadout-tag.ability { border-color: #55efc4; color: #55efc4; }
+        .ammo-panel {
+            background: rgba(20,20,40,0.9);
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 45vh;
+            overflow-y: auto;
+            display: none;
+        }
+        .ammo-panel h4 {
+            color: #00d4ff;
+            margin-bottom: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .ammo-panel .toggle-arrow {
+            transition: transform 0.2s;
+        }
+        .ammo-panel .toggle-arrow.collapsed {
+            transform: rotate(-90deg);
+        }
+        .ammo-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .ammo-card {
+            background: rgba(0,0,0,0.3);
+            padding: 8px 10px;
+            border-radius: 6px;
+            border-left: 3px solid #444;
+        }
+        .ammo-card.attack { border-left-color: #ff6b6b; }
+        .ammo-card.defense { border-left-color: #4ecdc4; }
+        .ammo-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        .ammo-card-name {
+            font-weight: bold;
+            font-size: 11px;
+        }
+        .ammo-card-operator {
+            font-size: 9px;
+            color: #888;
+        }
+        .ammo-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .ammo-bar-row {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 9px;
+        }
+        .ammo-bar-label {
+            width: 50px;
+            color: #888;
+            flex-shrink: 0;
+        }
+        .ammo-bar-track {
+            flex: 1;
+            height: 5px;
+            background: #333;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .ammo-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+        .ammo-bar-fill.primary { background: #ff9f43; }
+        .ammo-bar-fill.secondary { background: #74b9ff; }
+        .ammo-bar-fill.ability { background: #55efc4; }
+        .ammo-bar-value {
+            width: 38px;
+            text-align: right;
+            font-family: monospace;
+            font-size: 9px;
+            color: #ccc;
+        }
+        .help-btn {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20,20,40,0.8);
+            border: 1px solid #333;
+            color: #888;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 14px;
+            cursor: pointer;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .help-btn:hover { color: #00d4ff; border-color: #00d4ff; }
+        .help-tooltip {
+            display: none;
+            position: absolute;
+            bottom: 56px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20,20,40,0.95);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 11px;
+            color: #888;
+            z-index: 11;
+            white-space: nowrap;
+        }
+        .help-btn:hover + .help-tooltip,
+        .help-tooltip:hover { display: block; }
+        .help-tooltip kbd {
+            background: #333;
+            padding: 1px 5px;
+            border-radius: 3px;
+            color: #fff;
+            font-size: 10px;
+        }
+        .right-column {
+            position: absolute;
+            top: 0;
+            right: 20px;
+            bottom: 0;
+            width: 280px;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 20px;
+            pointer-events: none;
+            z-index: 10;
+            gap: 10px;
+        }
+        .right-column > * {
+            pointer-events: auto;
+            flex-shrink: 0;
+        }
+        .right-spacer {
+            flex-shrink: 1 !important;
+            pointer-events: none !important;
+        }
+        .event-feed {
+            background: rgba(20,20,40,0.9);
+            padding: 10px;
+            border-radius: 8px;
+            max-height: 45vh;
+            overflow-y: auto;
+        }
+        .event-feed h4 {
+            color: #00d4ff;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        .event-item {
+            font-size: 11px;
+            padding: 4px 6px;
+            margin-bottom: 4px;
+            border-radius: 4px;
+            background: rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .event-item.kill {
+            border-left: 3px solid #ff4444;
+        }
+        .event-item.death {
+            border-left: 3px solid #888;
+        }
+        .event-item.plant {
+            border-left: 3px solid #ffcc00;
+        }
+        .event-item.defuse {
+            border-left: 3px solid #00ff88;
+        }
+        .event-item.active {
+            background: rgba(255,255,255,0.1);
+            animation: eventPulse 0.5s ease-out;
+        }
+        @keyframes eventPulse {
+            0% { background: rgba(255,255,255,0.3); }
+            100% { background: rgba(255,255,255,0.1); }
+        }
+        .event-time {
+            color: #666;
+            font-size: 10px;
+            min-width: 40px;
+        }
+        .event-icon {
+            font-size: 14px;
+        }
+        .event-killer {
+            color: #ff6b6b;
+        }
+        .event-target {
+            color: #888;
+        }
+        .event-headshot {
+            color: #ffcc00;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div class="overlay">
+            <h1>R6 Movement 3D Visualizer</h1>
+            <div class="controls">
+                <input type="file" id="jsonFile" accept=".json" />
+                <div class="playback">
+                    <button id="playBtn">▶ Play</button>
+                    <input type="range" id="timeSlider" min="0" max="100" value="0" />
+                    <span id="currentTime">0.0s</span>
+                    <select id="speedSelect">
+                        <option value="0.5">0.5x</option>
+                        <option value="1" selected>1x</option>
+                        <option value="2">2x</option>
+                        <option value="5">5x</option>
+                        <option value="10">10x</option>
+                    </select>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showTrails" checked /> Trails
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showFloors" checked /> Floors
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showLabels" checked /> Labels
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showDirection" checked /> Direction
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showEvents" checked /> Events
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showAmmo" checked /> Ammo
+                    </label>
+                    <label class="checkbox-label">
+                        Yaw:
+                        <select id="yawOffset" style="margin-left:5px;background:#1a1a3a;color:#eee;border:1px solid #333;padding:4px;">
+                            <option value="0">0°</option>
+                            <option value="90">90°</option>
+                            <option value="180">180°</option>
+                            <option value="-90">-90°</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+            <div class="stats">
+                <span>Map: <span class="stat-value" id="mapName">-</span></span>
+                <span>Site: <span class="stat-value" id="siteName">-</span></span>
+                <span>Positions: <span class="stat-value" id="posCount">0</span></span>
+                <span>Events: <span class="stat-value" id="eventCount">0</span></span>
+            </div>
+        </div>
+        <div class="legend" id="legend" style="display:none">
+            <h3>Players</h3>
+            <div id="legendItems"></div>
+        </div>
+        <div class="right-column" id="rightColumn">
+            <div class="right-spacer" id="rightSpacer"></div>
+            <div class="event-feed" id="eventFeed" style="display:none">
+                <h4>Kill Feed</h4>
+                <div id="eventItems"></div>
+            </div>
+            <div class="ammo-panel" id="ammoPanel">
+                <h4 onclick="window.toggleAmmoPanel()">
+                    <span class="toggle-arrow" id="ammoToggle">▼</span>
+                    Live Ammo State
+                </h4>
+                <div class="ammo-grid" id="ammoGrid"></div>
+            </div>
+        </div>
+        <div class="help-btn" title="Keyboard shortcuts">?</div>
+        <div class="help-tooltip">
+            <p><kbd>Left Click</kbd> + Drag: Rotate &nbsp; <kbd>Right Click</kbd> + Drag: Pan &nbsp; <kbd>Scroll</kbd>: Zoom &nbsp; <kbd>Space</kbd>: Play/Pause</p>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        
+        // R6 Operator icons CDN
+        const R6_ICONS_CDN = 'https://cdn.jsdelivr.net/npm/r6operators@latest/dist/icons/';
+        
+        // Team colors
+        const attackerColors = [0xff6b6b, 0xff9f43, 0xf38181, 0xffcc5c, 0xff8c8c];
+        const defenderColors = [0x4ecdc4, 0x00d4ff, 0x26de81, 0xa8d8ea, 0xaa96da];
+        const defaultColors = [
+            0xff6b6b, 0x4ecdc4, 0xffe66d, 0x95e1d3, 0xf38181,
+            0xaa96da, 0xfcbad3, 0xa8d8ea, 0xff9f43, 0x26de81
+        ];
+        
+        // Scene setup
+        let scene, camera, renderer, controls;
+        let playerDirections = {}; // Direction indicators (cones) - main player marker
+        let trailLines = {};
+        let labelSprites = {};
+        let floorPlanes = [];
+        
+        // Event markers
+        let deathMarkers = {}; // username -> death marker mesh
+        let defuserMarker = null; // Defuser plant location
+        
+        // For smooth interpolation
+        let playerTargetYaw = {}; // Target yaw for interpolation
+        let playerCurrentYaw = {}; // Current interpolated yaw
+        
+        // Data
+        let data = null;
+        let allPositions = [];
+        let allEvents = []; // Kill, Death, DefuserPlant, DefuserDisable events
+        let maxTime = 0;
+        let currentTime = 0;
+        let isPlaying = false;
+        let lastFrameTime = 0;
+        let animationId = null;
+        
+        // Player state tracking
+        let playerDeathTimes = {}; // username -> time of death
+        let usernameToIndex = {}; // username -> movement index
+        let playerLoadouts = {}; // idx -> loadout object
+
+        // Weapon identification: maps (operator, magazineCapacity) -> weapon name
+        const WEAPON_DB = {
+            SLEDGE:     { pri: {30:"L85A2",7:"M590A1"}, sec: {16:"SMG-11"} },
+            THATCHER:   { pri: {30:"L85A2",25:"AR33"}, sec: {16:"P226 MK 25"} },
+            ASH:        { pri: {30:"R4-C",25:"G36C"}, sec: {7:"M45 MEUSOC",20:"5.7 USG"} },
+            THERMITE:   { pri: {30:"556XI"}, sec: {7:"M45 MEUSOC",20:"5.7 USG"} },
+            TWITCH:     { pri: {25:"F2",10:"417"}, sec: {16:"P9",6:"LFP586"} },
+            MONTAGNE:   { pri: {16:"P9",6:"LFP586"}, sec: {} },
+            GLAZ:       { pri: {10:"OTs-03"}, sec: {18:"PMM"} },
+            FUZE:       { pri: {30:"AK-12",100:"6P41"}, sec: {18:"PMM"} },
+            BLITZ:      { pri: {15:"P12"}, sec: {} },
+            IQ:         { pri: {30:"AUG A2",50:"G8A1"}, sec: {16:"P12"} },
+            BUCK:       { pri: {30:"C8-SFW",20:"CAMRS"}, sec: {13:"Mk1 9mm",6:"GONNE-6"} },
+            BLACKBEARD: { pri: {20:"MK17 CQB"}, sec: {7:"D-50"} },
+            "CAPITÃO":  { pri: {30:"PARA-308",100:"M249"}, sec: {16:"PRB92",6:"GONNE-6"} },
+            HIBANA:     { pri: {20:"TYPE-89"}, sec: {25:"Bearing 9",16:"P229"} },
+            JACKAL:     { pri: {30:"C7E",50:"PDW9",7:"ITA12L"}, sec: {16:"USP40",6:"GONNE-6"} },
+            YING:       { pri: {80:"T-95 LSW",6:"SIX12"}, sec: {33:"Q-929"} },
+            ZOFIA:      { pri: {30:"M762",150:"LMG-E"}, sec: {16:"RG15"} },
+            DOKKAEBI:   { pri: {20:"Mk 14 EBR",2:"BOSG 12.2"}, sec: {32:"SMG-12",26:"C75 Auto"} },
+            LION:       { pri: {50:"V308",10:"417"}, sec: {16:"P9",6:"GONNE-6"} },
+            FINKA:      { pri: {30:"Spear .308",100:"6P41",8:"SASG-12"}, sec: {18:"PMM",6:"GONNE-6"} },
+            MAVERICK:   { pri: {10:"AR-15.50",30:"M4"}, sec: {16:"1911 TACOPS"} },
+            NOMAD:      { pri: {40:"AK-74M",20:"ARX200"}, sec: {16:"PRB92",7:".44 Mag Semi-Auto"} },
+            GRIDLOCK:   { pri: {30:"F90",60:"M249 SAW"}, sec: {3:"Super Shorty",16:"SDP 9mm"} },
+            "NØKK":     { pri: {30:"FMG-9",6:"SIX12 SD"}, sec: {20:"5.7 USG",7:"D-50"} },
+            AMARU:      { pri: {50:"G8A1",7:"Supernova"}, sec: {32:"SMG-12"} },
+            KALI:       { pri: {5:"CSRX 300"}, sec: {20:"SPSMG9",16:"P226 MK 25"} },
+            IANA:       { pri: {20:"ARX200",25:"G36C"}, sec: {7:"MK1 9mm",6:"GONNE-6"} },
+            ACE:        { pri: {30:"AK-12",7:"M1014"}, sec: {16:"P9"} },
+            ZERO:       { pri: {25:"SC3000K",30:"MP7"}, sec: {20:"5.7 USG",6:"GONNE-6"} },
+            FLORES:     { pri: {25:"AR33",20:"SR-25"}, sec: {18:"GSh-18"} },
+            OSA:        { pri: {30:"556XI",50:"PDW9"}, sec: {18:"PMM"} },
+            SENS:       { pri: {25:"POF-9",10:"417"}, sec: {18:"GSh-18",6:"GONNE-6"} },
+            GRIM:       { pri: {30:"552 Commando",7:"SG-CQB"}, sec: {16:"P229",6:"GONNE-6"} },
+            BRAVA:      { pri: {30:"PARA-308",20:"CAMRS"}, sec: {16:"USP40",3:"Super Shorty"} },
+            RAM:        { pri: {30:"R4-C",150:"LMG-E"}, sec: {7:"MK1 9mm"} },
+            STRIKER:    { pri: {30:"M4",50:"V308"}, sec: {16:"1911 TACOPS",5:"Bailiff 410"} },
+            DEIMOS:     { pri: {40:"AK-74M",7:"M590A1"}, sec: {7:"D-50"} },
+            SKOPOS:     { pri: {30:"MP7",20:"Mk 14 EBR"}, sec: {18:"PMM"} },
+            SMOKE:      { pri: {30:"FMG-9",7:"M590A1"}, sec: {16:"SMG-11"} },
+            MUTE:       { pri: {30:"MP5K",7:"M590A1"}, sec: {16:"SMG-11"} },
+            CASTLE:     { pri: {25:"UMP45",7:"M1014"}, sec: {20:"5.7 USG",3:"Super Shorty"} },
+            PULSE:      { pri: {25:"UMP45",7:"M1014"}, sec: {7:"M45 MEUSOC",20:"5.7 USG"} },
+            DOC:        { pri: {30:"MP5",50:"P90",7:"SG-CQB"}, sec: {16:"P9",6:"LFP586",5:"Bailiff 410"} },
+            ROOK:       { pri: {30:"MP5",50:"P90",7:"SG-CQB"}, sec: {16:"P9",6:"LFP586"} },
+            KAPKAN:     { pri: {30:"9x19VSN",8:"SASG-12"}, sec: {18:"PMM"} },
+            TACHANKA:   { pri: {70:"DP27",30:"9x19VSN"}, sec: {18:"PMM",5:"Bearing 9"} },
+            "JÄGER":    { pri: {25:"416-C Carbine",5:"M870"}, sec: {16:"P12"} },
+            BANDIT:     { pri: {30:"MP7",5:"M870"}, sec: {16:"P12"} },
+            FROST:      { pri: {7:"Super 90",34:"9mm C1"}, sec: {7:"MK1 9mm"} },
+            VALKYRIE:   { pri: {30:"MPX",7:"SPAS-12"}, sec: {7:"D-50"} },
+            CAVEIRA:    { pri: {30:"M12",7:"SPAS-15"}, sec: {12:"Luison"} },
+            ECHO:       { pri: {30:"MP5SD",7:"Supernova"}, sec: {16:"P229",25:"Bearing 9"} },
+            MIRA:       { pri: {25:"Vector .45 ACP",7:"ITA12L"}, sec: {16:"USP40",5:"ITA12S"} },
+            LESION:     { pri: {30:"T-5 SMG",6:"SIX12 SD"}, sec: {16:"Q-929"} },
+            ELA:        { pri: {40:"Scorpion EVO 3 A1",10:"FO-12"}, sec: {15:"RG15"} },
+            VIGIL:      { pri: {30:"K1A",2:"BOSG 12.2"}, sec: {32:"SMG-12",26:"C75 Auto"} },
+            MAESTRO:    { pri: {80:"ALDA 5.56",30:"ACS12"}, sec: {5:"Bailiff 410",7:"Keratos .357"} },
+            ALIBI:      { pri: {30:"Mx4 Storm",30:"ACS12"}, sec: {5:"Bailiff 410",7:"Keratos .357"} },
+            CLASH:      { pri: {}, sec: {20:"SPSMG9",16:"P-10C"} },
+            KAID:       { pri: {30:"AUG A3",10:"TCSG12"}, sec: {7:".44 Mag Semi-Auto",6:"LFP586"} },
+            MOZZIE:     { pri: {25:"Commando 9",15:"P10 RONI"}, sec: {16:"SDP 9mm"} },
+            WARDEN:     { pri: {30:"MPX",7:"M590A1"}, sec: {16:"P-10C",32:"SMG-12"} },
+            GOYO:       { pri: {25:"Vector .45 ACP",10:"TCSG12"}, sec: {16:"P229",5:"Bailiff 410"} },
+            WAMAI:      { pri: {30:"AUG A2",30:"MP5K"}, sec: {15:"P12",7:"Keratos .357"} },
+            ORYX:       { pri: {30:"T-5 SMG",7:"SPAS-12"}, sec: {5:"Bailiff 410",16:"USP40"} },
+            MELUSI:     { pri: {30:"T-5 SMG",7:"Super 90"}, sec: {15:"RG15",5:"Bailiff 410"} },
+            ARUNI:      { pri: {15:"P10 RONI",20:"Mk 14 EBR"}, sec: {16:"PRB92"} },
+            THUNDERBIRD: { pri: {30:"Spear .308",7:"SPAS-12"}, sec: {25:"Bearing 9",7:"Keratos .357"} },
+            THORN:      { pri: {32:"UZI",5:"M870"}, sec: {16:"1911 TACOPS",7:"Keratos .357"} },
+            AZAMI:      { pri: {30:"9x19VSN",30:"ACS12"}, sec: {7:"D-50"} },
+            SOLIS:      { pri: {50:"P90",8:"ITA12L"}, sec: {16:"SMG-11"} },
+            FENRIR:     { pri: {30:"MP7",8:"SASG-12"}, sec: {20:"5.7 USG",5:"Bailiff 410"} },
+            "TUBARÃO":  { pri: {30:"MPX",10:"AR-15.50"}, sec: {15:"P12",16:"P226 MK 25"} },
+            SENTRY:     { pri: {10:"AR-15.50",30:"M4"}, sec: {16:"P226 MK 25"} },
+            DENARI:     { pri: {40:"AK-74M",7:"M590A1"}, sec: {4:"CZ 75"} },
+        };
+
+        function getWeaponName(operatorName, magCapacity, isPrimary) {
+            if (!operatorName || magCapacity === undefined) return null;
+            const op = operatorName.toUpperCase();
+            const entry = WEAPON_DB[op];
+            if (!entry) return null;
+            const slot = isPrimary !== false ? entry.pri : entry.sec;
+            if (!slot) return null;
+            return slot[magCapacity] || null;
+        }
+
+        let ammoTimeline = []; // sorted ammo updates
+        let ammoPanelCollapsed = false;
+        
+        // Coordinate bounds
+        let bounds = { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0 };
+        
+        function init() {
+            const container = document.getElementById('container');
+            
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a1a);
+            // No fog - keeps trails visible at all distances
+            
+            // Camera - extended far plane for full visibility
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(30, 40, 30);
+            camera.lookAt(0, 0, 0);
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+            
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 5;
+            controls.maxDistance = 500;
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404060, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(20, 40, 20);
+            scene.add(directionalLight);
+            
+            // Grid helper
+            const gridHelper = new THREE.GridHelper(100, 50, 0x333355, 0x222244);
+            scene.add(gridHelper);
+            
+            // Axes helper
+            const axesHelper = new THREE.AxesHelper(10);
+            scene.add(axesHelper);
+            
+            // Event listeners
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('keydown', onKeyDown);
+            
+            // UI event listeners
+            document.getElementById('jsonFile').addEventListener('change', loadFile);
+            document.getElementById('playBtn').addEventListener('click', togglePlay);
+            document.getElementById('timeSlider').addEventListener('input', onSliderChange);
+            document.getElementById('showTrails').addEventListener('change', updateVisibility);
+            document.getElementById('showFloors').addEventListener('change', updateVisibility);
+            document.getElementById('showLabels').addEventListener('change', updateVisibility);
+            document.getElementById('showDirection').addEventListener('change', updateVisibility);
+            document.getElementById('showEvents').addEventListener('change', updateVisibility);
+            document.getElementById('showAmmo').addEventListener('change', updateVisibility);
+            document.getElementById('yawOffset').addEventListener('change', () => renderAtTime(currentTime));
+            
+            animate();
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            // Re-calculate right-column spacer height
+            const overlay = document.querySelector('.overlay');
+            if (overlay) {
+                const h = overlay.getBoundingClientRect().height + 10;
+                document.getElementById('rightSpacer').style.minHeight = h + 'px';
+            }
+        }
+        
+        function onKeyDown(e) {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                togglePlay();
+            }
+        }
+        
+        async function loadFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const text = await file.text();
+            data = JSON.parse(text);
+            await processData();
+            createScene();
+            updateLegend();
+            document.getElementById('legend').style.display = 'block';
+            
+            // Size the right-column spacer to push content below the overlay
+            requestAnimationFrame(() => {
+                const overlay = document.querySelector('.overlay');
+                if (overlay) {
+                    const h = overlay.getBoundingClientRect().height + 10;
+                    document.getElementById('rightSpacer').style.minHeight = h + 'px';
+                }
+            });
+        }
+        
+        async function processData() {
+            const movements = data.movements || [];
+            const players = data.players || [];
+            allPositions = [];
+            allEvents = [];
+            playerDeathTimes = {};
+            usernameToIndex = {};
+            playerLoadouts = {};
+            maxTime = 0;
+            
+            // Calculate bounds
+            bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, minZ: Infinity, maxZ: -Infinity };
+            
+            let attackerIdx = 0, defenderIdx = 0;
+            
+            movements.forEach((m, idx) => {
+                const team = m.team;
+                let color;
+                
+                // Build username to index mapping
+                usernameToIndex[m.username] = idx;
+                
+                // Capture loadout data
+                if (m.loadout) {
+                    playerLoadouts[idx] = m.loadout;
+                } else {
+                    const player = players.find(p => p.username === m.username);
+                    if (player && player.loadout) {
+                        playerLoadouts[idx] = player.loadout;
+                    }
+                }
+                
+                if (team === 'Attack') {
+                    color = attackerColors[attackerIdx % attackerColors.length];
+                    attackerIdx++;
+                } else if (team === 'Defense') {
+                    color = defenderColors[defenderIdx % defenderColors.length];
+                    defenderIdx++;
+                } else {
+                    color = defaultColors[idx % defaultColors.length];
+                }
+                
+                if (m.positions) {
+                    m.positions.forEach(p => {
+                        if (p.timeInSeconds <= 1000) {
+                            allPositions.push({
+                                ...p,
+                                playerIndex: idx,
+                                username: m.username,
+                                operator: m.operator || 'Unknown',
+                                team: team,
+                                color: color
+                            });
+                            
+                            bounds.minX = Math.min(bounds.minX, p.x);
+                            bounds.maxX = Math.max(bounds.maxX, p.x);
+                            bounds.minY = Math.min(bounds.minY, p.y);
+                            bounds.maxY = Math.max(bounds.maxY, p.y);
+                            bounds.minZ = Math.min(bounds.minZ, p.z);
+                            bounds.maxZ = Math.max(bounds.maxZ, p.z);
+                            
+                            if (p.timeInSeconds > maxTime) maxTime = p.timeInSeconds;
+                        }
+                    });
+                }
+            });
+            
+            allPositions.sort((a, b) => a.timeInSeconds - b.timeInSeconds);
+            
+            // Process match feedback events
+            const matchFeedback = data.matchFeedback || [];
+            matchFeedback.forEach(event => {
+                const typeName = event.type?.name || event.type;
+                const eventCountdown = event.timeInSeconds;
+                
+                // Convert countdown time to elapsed time
+                // R6 uses countdown format: 180s (3 min action phase) counts down to 0
+                // Elapsed time = 45s prep phase + (180 - countdown)
+                // This matches how movement.go calculates time
+                const elapsedTime = 45 + (180 - eventCountdown);
+                
+                if (typeName === 'Kill' || typeName === 0) {
+                    allEvents.push({
+                        type: 'kill',
+                        time: elapsedTime,
+                        timeDisplay: event.time,
+                        killer: event.username,
+                        target: event.target,
+                        headshot: event.headshot
+                    });
+                    // Track death time for the target
+                    playerDeathTimes[event.target] = elapsedTime;
+                } else if (typeName === 'Death' || typeName === 1) {
+                    allEvents.push({
+                        type: 'death',
+                        time: elapsedTime,
+                        timeDisplay: event.time,
+                        target: event.username
+                    });
+                    playerDeathTimes[event.username] = elapsedTime;
+                } else if (typeName === 'DefuserPlantComplete' || typeName === 3) {
+                    allEvents.push({
+                        type: 'plant',
+                        time: elapsedTime,
+                        timeDisplay: event.time,
+                        username: event.username
+                    });
+                } else if (typeName === 'DefuserDisableComplete' || typeName === 5) {
+                    allEvents.push({
+                        type: 'defuse',
+                        time: elapsedTime,
+                        timeDisplay: event.time,
+                        username: event.username
+                    });
+                }
+            });
+            
+            // Sort events by time
+            allEvents.sort((a, b) => a.time - b.time);
+            
+            // Update stats
+            document.getElementById('mapName').textContent = data.map?.name || '-';
+            document.getElementById('siteName').textContent = data.site || '-';
+            document.getElementById('posCount').textContent = allPositions.length;
+            document.getElementById('eventCount').textContent = allEvents.length;
+            
+            // Show event feed if we have events
+            if (allEvents.length > 0) {
+                document.getElementById('eventFeed').style.display = 'block';
+                updateEventFeed(0);
+            }
+            
+            // Process ammo timeline
+            ammoTimeline = [];
+            const ammoUpdates = data.ammoUpdates || [];
+            if (ammoUpdates.length > 0) {
+                ammoTimeline = ammoUpdates.slice().sort((a, b) => a.timeInSeconds - b.timeInSeconds);
+                document.getElementById('ammoPanel').style.display = 'block';
+            }
+        }
+        
+        function createScene() {
+            // Clear existing objects
+            Object.values(playerDirections).forEach(d => scene.remove(d));
+            Object.values(trailLines).forEach(t => {
+                if (t.mesh) {
+                    scene.remove(t.mesh);
+                    t.mesh.geometry.dispose();
+                    t.mesh.material.dispose();
+                }
+            });
+            Object.values(labelSprites).forEach(s => scene.remove(s));
+            Object.values(deathMarkers).forEach(m => scene.remove(m));
+            if (defuserMarker) scene.remove(defuserMarker);
+            floorPlanes.forEach(p => scene.remove(p));
+            
+            playerDirections = {};
+            trailLines = {};
+            labelSprites = {};
+            deathMarkers = {};
+            defuserMarker = null;
+            floorPlanes = [];
+            playerTargetYaw = {};
+            playerCurrentYaw = {};
+            
+            const movements = data.movements || [];
+            
+            // Calculate center offset
+            const centerX = (bounds.minX + bounds.maxX) / 2;
+            const centerY = (bounds.minY + bounds.maxY) / 2;
+            
+            // Create floor planes
+            createFloorPlanes(centerX, centerY);
+            
+            // Create player cones and trails (no spheres - cones are the main marker)
+            let attackerIdx = 0, defenderIdx = 0;
+            
+            movements.forEach((m, idx) => {
+                const team = m.team;
+                let color;
+                
+                if (team === 'Attack') {
+                    color = attackerColors[attackerIdx % attackerColors.length];
+                    attackerIdx++;
+                } else if (team === 'Defense') {
+                    color = defenderColors[defenderIdx % defenderColors.length];
+                    defenderIdx++;
+                } else {
+                    color = defaultColors[idx % defaultColors.length];
+                }
+                
+                // Direction cone (main player marker) - larger and more visible
+                const coneGeometry = new THREE.ConeGeometry(0.5, 1.5, 12);
+                // Rotate geometry so cone points along +Z when rotation.y = 0
+                coneGeometry.rotateX(Math.PI / 2);
+                const coneMaterial = new THREE.MeshLambertMaterial({
+                    color: color,
+                    emissive: color,
+                    emissiveIntensity: 0.5
+                });
+                const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+                cone.visible = false;
+                scene.add(cone);
+                playerDirections[idx] = cone;
+                
+                // Initialize interpolation
+                playerTargetYaw[idx] = 0;
+                playerCurrentYaw[idx] = 0;
+                
+                // Trail - we'll use a TubeGeometry for better visibility
+                // Store placeholder, actual geometry created in renderAtTime
+                trailLines[idx] = {
+                    mesh: null,
+                    color: color
+                };
+                
+                // Label sprite
+                const label = createTextSprite(m.username, color);
+                label.visible = false;
+                scene.add(label);
+                labelSprites[idx] = label;
+            });
+            
+            // Center camera on scene
+            camera.position.set(
+                centerX + 30,
+                20,
+                centerY + 30
+            );
+            controls.target.set(centerX, 5, centerY);
+            controls.update();
+            
+            // Start at time 0
+            currentTime = 0;
+            renderAtTime(0);
+        }
+        
+        function createFloorPlanes(centerX, centerY) {
+            const floors = [
+                { z: 0, label: 'Basement', color: 0x333355 },
+                { z: 4.5, label: '1F', color: 0x335533 },
+                { z: 9, label: '2F', color: 0x553333 },
+                { z: 13.5, label: '3F', color: 0x555533 }
+            ];
+            
+            const sizeX = Math.max(50, bounds.maxX - bounds.minX + 20);
+            const sizeY = Math.max(50, bounds.maxY - bounds.minY + 20);
+            
+            floors.forEach(floor => {
+                if (floor.z >= bounds.minZ - 2 && floor.z <= bounds.maxZ + 2) {
+                    const geometry = new THREE.PlaneGeometry(sizeX, sizeY);
+                    const material = new THREE.MeshBasicMaterial({
+                        color: floor.color,
+                        transparent: true,
+                        opacity: 0.12,
+                        side: THREE.DoubleSide,
+                        depthWrite: false
+                    });
+                    const plane = new THREE.Mesh(geometry, material);
+                    plane.rotation.x = -Math.PI / 2;
+                    plane.position.set(centerX, floor.z, centerY);
+                    plane.renderOrder = -1; // Render before trails
+                    scene.add(plane);
+                    floorPlanes.push(plane);
+                    
+                    // Floor label
+                    const label = createTextSprite(floor.label, 0xffffff, 0.5);
+                    label.position.set(bounds.minX - 5, floor.z + 0.5, centerY);
+                    scene.add(label);
+                    floorPlanes.push(label);
+                }
+            });
+        }
+        
+        function createTextSprite(text, color, scale = 1) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 256;
+            canvas.height = 64;
+            
+            context.fillStyle = 'rgba(0,0,0,0.5)';
+            context.fillRect(0, 0, 256, 64);
+            
+            context.font = 'bold 24px sans-serif';
+            context.fillStyle = '#' + color.toString(16).padStart(6, '0');
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, 128, 32);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ 
+                map: texture,
+                transparent: true
+            });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(8 * scale, 2 * scale, 1);
+            
+            return sprite;
+        }
+        
+        function updateEventFeed(time) {
+            const showEvents = document.getElementById('showEvents').checked;
+            const eventFeed = document.getElementById('eventFeed');
+            const eventItems = document.getElementById('eventItems');
+            
+            eventFeed.style.display = showEvents && allEvents.length > 0 ? 'block' : 'none';
+            
+            if (!showEvents || allEvents.length === 0) return;
+            
+            // Show events that have occurred up to current time
+            const visibleEvents = allEvents.filter(e => e.time <= time);
+            
+            eventItems.innerHTML = visibleEvents.slice(-15).reverse().map((event, idx) => {
+                const isRecent = time - event.time < 3; // Highlight events in last 3 seconds
+                let icon = '';
+                let content = '';
+                let className = event.type;
+                
+                if (event.type === 'kill') {
+                    icon = '💀';
+                    const hsIcon = event.headshot ? ' <span class="event-headshot">🎯</span>' : '';
+                    content = `<span class="event-killer">${event.killer}</span> → <span class="event-target">${event.target}</span>${hsIcon}`;
+                } else if (event.type === 'death') {
+                    icon = '☠️';
+                    content = `<span class="event-target">${event.target}</span> died`;
+                } else if (event.type === 'plant') {
+                    icon = '💣';
+                    content = `<span class="event-killer">${event.username}</span> planted`;
+                } else if (event.type === 'defuse') {
+                    icon = '🛡️';
+                    content = `<span class="event-killer">${event.username}</span> defused`;
+                }
+                
+                return `
+                    <div class="event-item ${className} ${isRecent ? 'active' : ''}">
+                        <span class="event-time">${event.timeDisplay}</span>
+                        <span class="event-icon">${icon}</span>
+                        <span>${content}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function createDeathMarker(color) {
+            // Create an X shape for death marker
+            const group = new THREE.Group();
+            
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0xff0000,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            // Two crossed cylinders to form X
+            const barGeom = new THREE.CylinderGeometry(0.1, 0.1, 1.5, 8);
+            
+            const bar1 = new THREE.Mesh(barGeom, material);
+            bar1.rotation.z = Math.PI / 4;
+            group.add(bar1);
+            
+            const bar2 = new THREE.Mesh(barGeom, material);
+            bar2.rotation.z = -Math.PI / 4;
+            group.add(bar2);
+            
+            // Rotate to lay flat
+            group.rotation.x = Math.PI / 2;
+            
+            return group;
+        }
+        
+        function updateLegend() {
+            const movements = data.movements || [];
+            const legendItems = document.getElementById('legendItems');
+            
+            let attackerIdx = 0, defenderIdx = 0;
+            
+            legendItems.innerHTML = movements.map((m, idx) => {
+                const team = m.team;
+                let colorHex;
+                
+                if (team === 'Attack') {
+                    colorHex = '#' + attackerColors[attackerIdx % attackerColors.length].toString(16).padStart(6, '0');
+                    attackerIdx++;
+                } else if (team === 'Defense') {
+                    colorHex = '#' + defenderColors[defenderIdx % defenderColors.length].toString(16).padStart(6, '0');
+                    defenderIdx++;
+                } else {
+                    colorHex = '#' + defaultColors[idx % defaultColors.length].toString(16).padStart(6, '0');
+                }
+                
+                const operator = m.operator || 'Unknown';
+                const iconUrl = operator !== 'Unknown' ? 
+                    `${R6_ICONS_CDN}${operator.toLowerCase()}.svg` : '';
+                const teamClass = team === 'Attack' ? 'attacker' : team === 'Defense' ? 'defender' : '';
+                
+                // Build loadout tags
+                const loadout = playerLoadouts[idx];
+                let loadoutHtml = '';
+                if (loadout) {
+                    const tags = [];
+                    if (loadout.magazineAmmo !== undefined && loadout.magazineCapacity !== undefined) {
+                        const priName = getWeaponName(operator, loadout.magazineCapacity, true);
+                        const priLabel = priName ? `${priName} (${loadout.magazineAmmo}/${loadout.magazineCapacity})` : `Pri: ${loadout.magazineAmmo}/${loadout.magazineCapacity}`;
+                        tags.push(`<span class="loadout-tag primary" title="Primary weapon">${priLabel}</span>`);
+                    }
+                    if (loadout.secondaryMagAmmo > 0 && loadout.secondaryMagCapacity > 0) {
+                        const secName = getWeaponName(operator, loadout.secondaryMagCapacity, false);
+                        const secLabel = secName ? `${secName} (${loadout.secondaryMagAmmo}/${loadout.secondaryMagCapacity})` : `Sec: ${loadout.secondaryMagAmmo}/${loadout.secondaryMagCapacity}`;
+                        tags.push(`<span class="loadout-tag secondary" title="Secondary weapon">${secLabel}</span>`);
+                    }
+                    if (loadout.abilityCharges !== undefined && loadout.abilityCharges > 0) {
+                        tags.push(`<span class="loadout-tag ability" title="Operator ability charges">Ability: ${loadout.abilityCharges}</span>`);
+                    }
+                    if (tags.length > 0) {
+                        loadoutHtml = `<div class="legend-loadout">${tags.join('')}</div>`;
+                    }
+                }
+                
+                return `
+                    <div class="legend-item ${teamClass}">
+                        ${iconUrl ? `<img class="legend-icon" src="${iconUrl}" onerror="this.style.display='none'">` : ''}
+                        <div class="legend-color" style="background:${colorHex}"></div>
+                        <div class="legend-info">
+                            <div class="legend-name">${m.username}</div>
+                            <div class="legend-op">${operator} (${team || '?'})</div>
+                            ${loadoutHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Ammo helper functions
+        function getAmmoStateAtTime(time) {
+            // Get the latest ammo state for each player at the given time.
+            // Tracks primary weapon state and ability state separately.
+            const stateByPlayer = {};
+            const abilityByPlayer = {};
+            for (const update of ammoTimeline) {
+                if (update.timeInSeconds > time) break;
+                if (update.isAbility) {
+                    abilityByPlayer[update.username] = update;
+                } else if (update.isPrimary !== false) {
+                    stateByPlayer[update.username] = update;
+                } else if (!stateByPlayer[update.username]) {
+                    stateByPlayer[update.username] = update;
+                }
+            }
+            return { weapons: stateByPlayer, abilities: abilityByPlayer };
+        }
+        
+        window.toggleAmmoPanel = function() {
+            ammoPanelCollapsed = !ammoPanelCollapsed;
+            const grid = document.getElementById('ammoGrid');
+            const arrow = document.getElementById('ammoToggle');
+            grid.style.display = ammoPanelCollapsed ? 'none' : 'flex';
+            arrow.classList.toggle('collapsed', ammoPanelCollapsed);
+        };
+        
+        function renderAmmoPanel(time) {
+            if (ammoTimeline.length === 0) return;
+            
+            const { weapons: weaponState, abilities: abilityState } = getAmmoStateAtTime(time);
+            const grid = document.getElementById('ammoGrid');
+            const movements = data.movements || [];
+            
+            const cards = [];
+            movements.forEach((m, idx) => {
+                const validCount = m.positions?.filter(p => p.timeInSeconds <= 1000).length || 0;
+                if (validCount === 0) return;
+                
+                const loadout = playerLoadouts[idx];
+                const ammoUpdate = weaponState[m.username];
+                const abilityUpdate = abilityState[m.username];
+                
+                if (!loadout && !ammoUpdate && !abilityUpdate) return;
+                
+                const team = m.team || '';
+                const teamClass = team === 'Attack' ? 'attack' : team === 'Defense' ? 'defense' : '';
+                const operator = m.operator || 'Unknown';
+                
+                const magAmmo = ammoUpdate ? ammoUpdate.magazineAmmo : (loadout?.magazineAmmo ?? 0);
+                const magCap = loadout?.magazineCapacity ?? (ammoUpdate?.magazineCapacity ?? 0);
+                const totalAmmo = ammoUpdate?.totalAmmo ?? (loadout?.totalAmmo ?? 0);
+                
+                // Ability charges
+                const initAbility = loadout?.abilityCharges ?? 0;
+                const currentAbility = abilityUpdate ? (abilityUpdate.magazineAmmo + (abilityUpdate.reserveAmmo || 0)) : initAbility;
+                
+                const priWeaponName = getWeaponName(operator, magCap, true) || 'Primary';
+                
+                const initMagAmmo = loadout?.magazineAmmo ?? (magCap > 0 ? magCap + 1 : 0);
+                const initTotalAmmo = loadout?.totalAmmo ?? totalAmmo;
+                
+                let barsHtml = '';
+                
+                if (initMagAmmo > 0) {
+                    const pct = Math.min(100, (magAmmo / initMagAmmo) * 100);
+                    barsHtml += `
+                        <div class="ammo-bar-row">
+                            <span class="ammo-bar-label">${priWeaponName}</span>
+                            <div class="ammo-bar-track"><div class="ammo-bar-fill primary" style="width:${pct}%"></div></div>
+                            <span class="ammo-bar-value">${magAmmo}/${magCap}</span>
+                        </div>`;
+                }
+                if (initTotalAmmo > 0) {
+                    const pct = Math.min(100, (totalAmmo / initTotalAmmo) * 100);
+                    barsHtml += `
+                        <div class="ammo-bar-row">
+                            <span class="ammo-bar-label">Total</span>
+                            <div class="ammo-bar-track"><div class="ammo-bar-fill secondary" style="width:${pct}%"></div></div>
+                            <span class="ammo-bar-value">${totalAmmo}</span>
+                        </div>`;
+                }
+                if (initAbility > 0) {
+                    const pct = initAbility > 0 ? Math.min(100, (currentAbility / initAbility) * 100) : 100;
+                    barsHtml += `
+                        <div class="ammo-bar-row">
+                            <span class="ammo-bar-label">Ability</span>
+                            <div class="ammo-bar-track"><div class="ammo-bar-fill ability" style="width:${pct}%"></div></div>
+                            <span class="ammo-bar-value">${currentAbility}/${initAbility}</span>
+                        </div>`;
+                }
+                
+                cards.push(`
+                    <div class="ammo-card ${teamClass}">
+                        <div class="ammo-card-header">
+                            <span class="ammo-card-name">${m.username}</span>
+                            <span class="ammo-card-operator">${operator}</span>
+                        </div>
+                        <div class="ammo-bars">${barsHtml}</div>
+                    </div>
+                `);
+            });
+            
+            grid.innerHTML = cards.join('');
+        }
+        
+        function renderAtTime(time) {
+            if (!data) return;
+            
+            const showTrails = document.getElementById('showTrails').checked;
+            const showLabels = document.getElementById('showLabels').checked;
+            const showDirection = document.getElementById('showDirection').checked;
+            const showEvents = document.getElementById('showEvents').checked;
+            const movements = data.movements || [];
+            
+            // Group positions by player up to current time
+            const playerPositions = {};
+            const latestPositions = {};
+            
+            allPositions.forEach(p => {
+                if (p.timeInSeconds <= time) {
+                    if (!playerPositions[p.playerIndex]) {
+                        playerPositions[p.playerIndex] = [];
+                    }
+                    playerPositions[p.playerIndex].push(p);
+                    latestPositions[p.playerIndex] = p;
+                }
+            });
+            
+            // Determine which players are dead at current time
+            const deadPlayers = new Set();
+            Object.entries(playerDeathTimes).forEach(([username, deathTime]) => {
+                if (time >= deathTime) {
+                    deadPlayers.add(username);
+                }
+            });
+            
+            // Update each player
+            movements.forEach((m, idx) => {
+                const dirCone = playerDirections[idx];
+                const trail = trailLines[idx];
+                const label = labelSprites[idx];
+                const username = m.username;
+                
+                const latest = latestPositions[idx];
+                const positions = playerPositions[idx] || [];
+                const isDead = deadPlayers.has(username);
+                
+                if (latest && dirCone) {
+                    // Position cone at player location
+                    dirCone.position.set(latest.x, latest.z + 0.3, latest.y);
+                    
+                    // Handle dead players - show faded and create death marker
+                    if (isDead && showEvents) {
+                        // Fade the cone
+                        dirCone.material.opacity = 0.3;
+                        dirCone.material.transparent = true;
+                        
+                        // Create or show death marker at last known position
+                        if (!deathMarkers[username]) {
+                            const marker = createDeathMarker();
+                            marker.position.set(latest.x, latest.z + 0.5, latest.y);
+                            scene.add(marker);
+                            deathMarkers[username] = marker;
+                        }
+                        deathMarkers[username].visible = true;
+                    } else {
+                        dirCone.material.opacity = 1;
+                        dirCone.material.transparent = false;
+                        if (deathMarkers[username]) {
+                            deathMarkers[username].visible = false;
+                        }
+                    }
+                    
+                    // Update rotation with interpolation
+                    if (showDirection && latest.yaw !== undefined) {
+                        const yawOffset = parseFloat(document.getElementById('yawOffset').value);
+                        const targetYaw = -(latest.yaw + yawOffset) * Math.PI / 180;
+                        
+                        // Set target for interpolation
+                        playerTargetYaw[idx] = targetYaw;
+                        
+                        // Smooth interpolation toward target yaw
+                        let currentYaw = playerCurrentYaw[idx] || targetYaw;
+                        let diff = targetYaw - currentYaw;
+                        
+                        // Handle wraparound
+                        while (diff > Math.PI) diff -= 2 * Math.PI;
+                        while (diff < -Math.PI) diff += 2 * Math.PI;
+                        
+                        // Interpolate (lerp factor)
+                        const lerpFactor = 0.15;
+                        currentYaw += diff * lerpFactor;
+                        playerCurrentYaw[idx] = currentYaw;
+                        
+                        dirCone.rotation.y = currentYaw;
+                        dirCone.visible = true;
+                    } else {
+                        // Still show cone even without yaw (just no rotation)
+                        dirCone.visible = true;
+                    }
+                    
+                    // Update label position and show death status
+                    label.position.set(latest.x, latest.z + 2, latest.y);
+                    label.visible = showLabels;
+                    if (isDead && showLabels) {
+                        label.material.opacity = 0.4;
+                    } else {
+                        label.material.opacity = 1;
+                    }
+                    
+                    // Update trail using tube geometry for better visibility
+                    if (showTrails && positions.length > 2) {
+                        // Remove old trail mesh if exists
+                        if (trail.mesh) {
+                            scene.remove(trail.mesh);
+                            trail.mesh.geometry.dispose();
+                            trail.mesh.material.dispose();
+                        }
+                        
+                        // Sample points to avoid too many (max 200 points for performance)
+                        let pts = positions;
+                        if (pts.length > 200) {
+                            const step = Math.ceil(pts.length / 200);
+                            pts = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
+                        }
+                        
+                        const points = pts.map(p => new THREE.Vector3(p.x, p.z, p.y));
+                        
+                        // Create a smooth curve from points
+                        const curve = new THREE.CatmullRomCurve3(points, false);
+                        
+                        // Create tube geometry
+                        const tubeGeometry = new THREE.TubeGeometry(curve, Math.min(pts.length * 2, 300), 0.08, 6, false);
+                        const tubeMaterial = new THREE.MeshBasicMaterial({
+                            color: trail.color,
+                            transparent: true,
+                            opacity: isDead ? 0.3 : 0.7
+                        });
+                        
+                        trail.mesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
+                        scene.add(trail.mesh);
+                    } else if (trail.mesh) {
+                        trail.mesh.visible = false;
+                    }
+                } else {
+                    if (dirCone) dirCone.visible = false;
+                    if (trail.mesh) trail.mesh.visible = false;
+                    label.visible = false;
+                    if (deathMarkers[username]) deathMarkers[username].visible = false;
+                }
+            });
+            
+            // Update event feed
+            updateEventFeed(time);
+            
+            // Update ammo panel
+            renderAmmoPanel(time);
+        }
+        
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            document.getElementById('playBtn').textContent = isPlaying ? '⏸ Pause' : '▶ Play';
+            if (isPlaying) {
+                lastFrameTime = performance.now();
+            }
+        }
+        
+        function onSliderChange(e) {
+            currentTime = (e.target.value / 100) * maxTime;
+            document.getElementById('currentTime').textContent = currentTime.toFixed(1) + 's';
+            renderAtTime(currentTime);
+        }
+        
+        function updateVisibility() {
+            const showFloors = document.getElementById('showFloors').checked;
+            const showTrails = document.getElementById('showTrails').checked;
+            const showEvents = document.getElementById('showEvents').checked;
+            const showAmmo = document.getElementById('showAmmo').checked;
+            
+            floorPlanes.forEach(p => p.visible = showFloors);
+            
+            // Toggle trail visibility
+            Object.values(trailLines).forEach(t => {
+                if (t.mesh) t.mesh.visible = showTrails;
+            });
+            
+            // Toggle death markers
+            Object.values(deathMarkers).forEach(m => {
+                if (!showEvents) m.visible = false;
+            });
+            
+            // Toggle event feed
+            document.getElementById('eventFeed').style.display = 
+                showEvents && allEvents.length > 0 ? 'block' : 'none';
+            
+            // Toggle ammo panel
+            if (ammoTimeline.length > 0) {
+                document.getElementById('ammoPanel').style.display = showAmmo ? 'block' : 'none';
+            }
+            
+            renderAtTime(currentTime);
+        }
+        
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            
+            if (isPlaying && data) {
+                const now = performance.now();
+                const delta = (now - lastFrameTime) / 1000;
+                lastFrameTime = now;
+                
+                const speed = parseFloat(document.getElementById('speedSelect').value);
+                currentTime += delta * speed;
+                
+                if (currentTime >= maxTime) {
+                    currentTime = 0;
+                }
+                
+                document.getElementById('timeSlider').value = (currentTime / maxTime) * 100;
+                document.getElementById('currentTime').textContent = currentTime.toFixed(1) + 's';
+                renderAtTime(currentTime);
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        // Initialize
+        init();
+    </script>
+</body>
+</html>

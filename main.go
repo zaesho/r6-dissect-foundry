@@ -78,6 +78,8 @@ func setup() {
 	pflag.BoolP("dump", "p", false, "dumps decompressed replay to the output")
 	pflag.Bool("info", false, "prints the replay header")
 	pflag.BoolP("version", "v", false, "prints the version")
+	pflag.Bool("movement", false, "enables player movement tracking (experimental)")
+	pflag.Int("movement-sample", 10, "movement sample rate (0=all, N=every Nth position)")
 	pflag.Parse()
 	if err := viper.BindPFlags(pflag.CommandLine); err != nil {
 		log.Fatal().Err(err)
@@ -162,10 +164,17 @@ func writeRound(in io.Reader, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// Enable movement tracking if flag is set
+	if viper.GetBool("movement") {
+		sampleRate := viper.GetInt("movement-sample")
+		r.EnableMovementTracking(sampleRate)
+	}
 	type output struct {
 		dissect.Header
 		MatchFeedback []dissect.MatchUpdate      `json:"matchFeedback"`
 		PlayerStats   []dissect.PlayerRoundStats `json:"stats"`
+		Movements     []dissect.PlayerMovement   `json:"movements,omitempty"`
+		AmmoUpdates   []dissect.AmmoUpdate       `json:"ammoUpdates,omitempty"`
 	}
 	if err := r.Read(); !dissect.Ok(err) {
 		return err
@@ -175,6 +184,8 @@ func writeRound(in io.Reader, out io.Writer) error {
 		r.Header,
 		r.MatchFeedback,
 		r.PlayerStats(),
+		r.GetMovementData(),
+		r.AmmoUpdates,
 	})
 }
 

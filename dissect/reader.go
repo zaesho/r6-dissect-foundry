@@ -31,9 +31,23 @@ type Reader struct {
 	readPartial              bool // reads up to the player info packets
 	playersRead              int
 	lastKillerFromScoreboard string
+	dbnoState                map[string]string // maps victim username -> downer username (who knocked them)
 	Header                   Header        `json:"header"`
 	MatchFeedback            []MatchUpdate `json:"matchFeedback"`
+	AmmoUpdates              []AmmoUpdate  `json:"-"` // ammo state updates (populated by readAmmo)
 	Scoreboard               Scoreboard
+	playerLoadouts           map[int]PlayerLoadout      // player index -> initial loadout state
+	ammoEntityEntries              map[uint32]ammoEntityEntry // entity ID -> entry with player index + type
+	ammoLastPatternOffset          int                        // bookmarked offset for entity ID extraction
+	ammoLastNewEntityOffset        int                        // offset of last newly-seen entity (for gap detection)
+	ammoNextPlayerIdx              int                        // next player index to assign to a new entity group
+	ammoCurrentPlayerEntityCount   int                        // entities seen so far for current player group
+	TrackMovement            bool           // set to true to enable movement tracking
+	MovementSampleRate       int            // sample every Nth movement packet (0 = all)
+	ExperimentalTypes        bool           // capture experimental packet types (0x3F etc.) for analysis
+	movementCounter          int            // internal counter for sampling
+	rawPositions             []rawPosition  // raw position packets before track assignment
+	experimentalPositions    []ExperimentalPacket // packets from non-standard types (0x3F etc.)
 }
 
 // NewReader decompresses in using zstd and
@@ -48,6 +62,9 @@ func NewReader(in io.Reader) (r *Reader, err error) {
 	r = &Reader{
 		readPartial:            false,
 		lastDefuserPlayerIndex: -1,
+		dbnoState:              make(map[string]string),
+		playerLoadouts:         make(map[int]PlayerLoadout),
+		ammoEntityEntries:      make(map[uint32]ammoEntityEntry),
 	}
 	if chunkedCompression {
 		if err = r.readChunkedData(br); err != nil {
@@ -73,6 +90,12 @@ func NewReader(in io.Reader) (r *Reader, err error) {
 	r.Listen([]byte{0xEC, 0xDA, 0x4F, 0x80}, readScoreboardScore)
 	r.Listen([]byte{0x4D, 0x73, 0x7F, 0x9E}, readScoreboardAssists)
 	r.Listen([]byte{0x1C, 0xD2, 0xB1, 0x9D}, readScoreboardKills)
+	// Register ammo/loadout packet listener (77 CA 96 DE)
+	// Tracks primary/secondary weapon ammo and operator ability charges per player
+	r.Listen([]byte{0x77, 0xCA, 0x96, 0xDE}, wrapAmmoReader)
+	// Register movement packet listener (only processed if TrackMovement is enabled)
+	// Player positions (00 00 60 73 85 fe) - uses position continuity tracking
+	r.Listen([]byte{0x00, 0x00, 0x60, 0x73, 0x85, 0xfe}, readPlayerPosition)
 	return r, err
 }
 
@@ -229,6 +252,8 @@ func (r *Reader) Read() (err error) {
 		}
 	}
 	if !r.readPartial {
+		// Populate player loadout data from captured ammo updates
+		r.populateLoadouts()
 		r.roundEnd()
 	}
 	r.b = nil
@@ -305,6 +330,15 @@ func (r *Reader) Bytes(n int) ([]byte, error) {
 	return r.b[r.offset-n : r.offset], nil
 }
 
+// PeekBack returns up to n bytes before the current offset without changing position
+func (r *Reader) PeekBack(n int) []byte {
+	start := r.offset - n
+	if start < 0 {
+		start = 0
+	}
+	return r.b[start:r.offset]
+}
+
 func (r *Reader) Int() (int, error) {
 	b, err := r.Bytes(1)
 	if err != nil {
@@ -347,6 +381,26 @@ func (r *Reader) Uint64() (uint64, error) {
 	return binary.LittleEndian.Uint64(b), nil
 }
 
+// Float32 reads a little-endian float32 from the stream.
+func (r *Reader) Float32() (float32, error) {
+	b, err := r.Bytes(4)
+	if err != nil {
+		return 0, err
+	}
+	return math.Float32frombits(binary.LittleEndian.Uint32(b)), nil
+}
+
 func (r *Reader) Write(w io.Writer) (n int, err error) {
 	return w.Write(r.b)
+}
+
+// ClearDBNOState removes a player from the DBNO tracking (e.g., when they are revived or killed)
+func (r *Reader) ClearDBNOState(username string) {
+	delete(r.dbnoState, username)
+}
+
+// GetDowner returns who downed a player, if they are in DBNO state
+func (r *Reader) GetDowner(victim string) (string, bool) {
+	downer, ok := r.dbnoState[victim]
+	return downer, ok
 }

@@ -42,19 +42,20 @@ type Team struct {
 }
 
 type Player struct {
-	ID           uint64   `json:"id,omitempty"`
-	ProfileID    string   `json:"profileID,omitempty"` // Ubisoft stats identifier
-	Username     string   `json:"username"`
-	TeamIndex    int      `json:"teamIndex"`
-	Operator     Operator `json:"operator"`
-	HeroName     int      `json:"heroName,omitempty"`
-	Alliance     int      `json:"alliance"`
-	RoleImage    int      `json:"roleImage,omitempty"`
-	RoleName     string   `json:"roleName,omitempty"`
-	RolePortrait int      `json:"rolePortrait,omitempty"`
-	Spawn        string   `json:"spawn,omitempty"`
-	DissectID    []byte   `json:"-" deep:"-"` // dissect player id at end of packet (4 bytes)
-	uiID         uint64   `json:"-" deep:"-"`
+	ID           uint64         `json:"id,omitempty"`
+	ProfileID    string         `json:"profileID,omitempty"` // Ubisoft stats identifier
+	Username     string         `json:"username"`
+	TeamIndex    int            `json:"teamIndex"`
+	Operator     Operator       `json:"operator"`
+	HeroName     int            `json:"heroName,omitempty"`
+	Alliance     int            `json:"alliance"`
+	RoleImage    int            `json:"roleImage,omitempty"`
+	RoleName     string         `json:"roleName,omitempty"`
+	RolePortrait int            `json:"rolePortrait,omitempty"`
+	Spawn        string         `json:"spawn,omitempty"`
+	Loadout      *PlayerLoadout `json:"loadout,omitempty"` // initial loadout state from ammo data
+	DissectID    []byte         `json:"-" deep:"-"`        // dissect player id at end of packet (4 bytes)
+	uiID         uint64         `json:"-" deep:"-"`
 }
 
 type stringerIntMarshal struct {

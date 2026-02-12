@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R6 Movement Visualizer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e; 
+            color: #eee;
+            min-height: 100vh;
+        }
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            padding: 20px;
+        }
+        h1 { 
+            text-align: center; 
+            margin-bottom: 20px;
+            color: #00d4ff;
+        }
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .file-input {
+            flex: 1;
+            min-width: 300px;
+        }
+        input[type="file"] {
+            background: #2a2a4a;
+            border: 2px dashed #444;
+            padding: 20px;
+            width: 100%;
+            color: #eee;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        input[type="file"]:hover {
+            border-color: #00d4ff;
+        }
+        .stats {
+            background: #2a2a4a;
+            padding: 15px 20px;
+            border-radius: 8px;
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+        }
+        .views {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        @media (max-width: 900px) {
+            .views { grid-template-columns: 1fr; }
+        }
+        .view-container {
+            background: #2a2a4a;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .view-title {
+            background: #3a3a5a;
+            padding: 10px 15px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            background: #1a1a2e;
+        }
+        .legend {
+            background: #2a2a4a;
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 10px;
+            background: #1a1a2e;
+            border-radius: 6px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        .legend-icon {
+            width: 28px;
+            height: 28px;
+            filter: brightness(0) invert(1);
+        }
+        .legend-item.attacker .legend-icon {
+            filter: brightness(0) saturate(100%) invert(57%) sepia(75%) saturate(1500%) hue-rotate(340deg) brightness(100%) contrast(100%);
+        }
+        .legend-item.defender .legend-icon {
+            filter: brightness(0) saturate(100%) invert(70%) sepia(50%) saturate(500%) hue-rotate(150deg) brightness(100%) contrast(100%);
+        }
+        .legend-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .legend-name {
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .legend-operator {
+            font-size: 11px;
+            color: #888;
+        }
+        .legend-stats {
+            font-size: 10px;
+            color: #666;
+        }
+        .legend-loadout {
+            font-size: 10px;
+            color: #aaa;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .loadout-tag {
+            background: #1a1a2e;
+            padding: 1px 5px;
+            border-radius: 3px;
+            border: 1px solid #333;
+            font-size: 9px;
+            white-space: nowrap;
+        }
+        .loadout-tag.primary { border-color: #ff9f43; color: #ff9f43; }
+        .loadout-tag.secondary { border-color: #74b9ff; color: #74b9ff; }
+        .loadout-tag.ability { border-color: #55efc4; color: #55efc4; }
+        .ammo-panel {
+            background: #2a2a4a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+        .ammo-panel h3 {
+            color: #00d4ff;
+            margin-bottom: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .ammo-panel h3 .toggle-arrow {
+            transition: transform 0.2s;
+        }
+        .ammo-panel h3 .toggle-arrow.collapsed {
+            transform: rotate(-90deg);
+        }
+        .ammo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+        }
+        .ammo-card {
+            background: #1a1a2e;
+            padding: 10px 12px;
+            border-radius: 6px;
+            border-left: 3px solid #444;
+        }
+        .ammo-card.attack { border-left-color: #ff6b6b; }
+        .ammo-card.defense { border-left-color: #4ecdc4; }
+        .ammo-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .ammo-card-name {
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .ammo-card-operator {
+            font-size: 10px;
+            color: #888;
+        }
+        .ammo-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .ammo-bar-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+        }
+        .ammo-bar-label {
+            width: 55px;
+            color: #888;
+            flex-shrink: 0;
+        }
+        .ammo-bar-track {
+            flex: 1;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .ammo-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+        .ammo-bar-fill.primary { background: #ff9f43; }
+        .ammo-bar-fill.secondary { background: #74b9ff; }
+        .ammo-bar-fill.ability { background: #55efc4; }
+        .ammo-bar-value {
+            width: 40px;
+            text-align: right;
+            font-family: monospace;
+            font-size: 10px;
+            color: #ccc;
+        }
+        .info {
+            background: #2a2a4a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .info h3 {
+            color: #00d4ff;
+            margin-bottom: 10px;
+        }
+        .coord-range {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .range-item {
+            background: #1a1a2e;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .range-label { color: #888; font-size: 12px; }
+        .range-value { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>R6 Movement Packet Visualizer</h1>
+        
+        <div class="controls">
+            <div class="file-input">
+                <input type="file" id="jsonFile" accept=".json" />
+            </div>
+            <div class="stats" id="stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="posCount">0</div>
+                    <div class="stat-label">Positions</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="mapName">-</div>
+                    <div class="stat-label">Map</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="siteName">-</div>
+                    <div class="stat-label">Site</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="currentTime">0.0s</div>
+                    <div class="stat-label">Time</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="playback-controls" style="background:#2a2a4a;padding:15px;border-radius:8px;margin-bottom:20px;display:flex;gap:15px;align-items:center;">
+            <button id="playBtn" style="background:#00d4ff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold;">▶ Play</button>
+            <input type="range" id="timeSlider" min="0" max="100" value="0" style="flex:1;" />
+            <select id="speedSelect" style="padding:8px;background:#1a1a2e;color:#eee;border:1px solid #444;border-radius:4px;">
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1x</option>
+                <option value="2">2x</option>
+                <option value="5">5x</option>
+                <option value="10">10x</option>
+            </select>
+            <label style="display:flex;align-items:center;gap:5px;">
+                <input type="checkbox" id="showTrails" checked /> Trails
+            </label>
+            <label style="display:flex;align-items:center;gap:5px;">
+                <input type="checkbox" id="showDirection" checked /> Direction
+            </label>
+            <label style="display:flex;align-items:center;gap:5px;">
+                Yaw Offset:
+                <select id="yawOffset">
+                    <option value="0">0°</option>
+                    <option value="90">90°</option>
+                    <option value="180">180°</option>
+                    <option value="-90">-90°</option>
+                </select>
+            </label>
+        </div>
+        
+        <div class="views">
+            <div class="view-container">
+                <div class="view-title">
+                    <span>Top-Down View (X/Y)</span>
+                    <span style="color:#888;font-size:12px">Z shown as color intensity</span>
+                </div>
+                <canvas id="topView" width="600" height="600"></canvas>
+            </div>
+            <div class="view-container">
+                <div class="view-title">
+                    <span>Side View (X/Z)</span>
+                    <span style="color:#888;font-size:12px">Height profile</span>
+                </div>
+                <canvas id="sideView" width="600" height="400"></canvas>
+            </div>
+        </div>
+        
+        <div class="legend" id="legend"></div>
+        
+        <div class="ammo-panel" id="ammoPanel">
+            <h3 onclick="toggleAmmoPanel()">
+                <span class="toggle-arrow" id="ammoToggle">▼</span>
+                Live Ammo State
+            </h3>
+            <div class="ammo-grid" id="ammoGrid"></div>
+        </div>
+        
+        <div class="info" id="info" style="display:none">
+            <h3>Coordinate Ranges</h3>
+            <div class="coord-range">
+                <div class="range-item">
+                    <div class="range-label">X Range</div>
+                    <div class="range-value" id="xRange">-</div>
+                </div>
+                <div class="range-item">
+                    <div class="range-label">Y Range</div>
+                    <div class="range-value" id="yRange">-</div>
+                </div>
+                <div class="range-item">
+                    <div class="range-label">Z Range (Height)</div>
+                    <div class="range-value" id="zRange">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Team colors: Attackers (orange/red tones) vs Defenders (blue/green tones)
+        const attackerColors = ['#ff6b6b', '#ff9f43', '#f38181', '#ffcc5c', '#ff8c8c'];
+        const defenderColors = ['#4ecdc4', '#00d4ff', '#26de81', '#a8d8ea', '#aa96da'];
+        const spectatorColor = '#888888';
+        
+        // Default colors if no team info
+        const colors = [
+            '#ff6b6b', '#4ecdc4', '#ffe66d', '#95e1d3', '#f38181',
+            '#aa96da', '#fcbad3', '#a8d8ea', '#ff9f43', '#26de81',
+            '#ff7675', '#74b9ff', '#55efc4', '#ffeaa7', '#dfe6e9'
+        ];
+        
+        // R6 Operators icon CDN URL
+        const R6_ICONS_CDN = 'https://cdn.jsdelivr.net/npm/r6operators@latest/dist/icons/';
+        
+        // Preloaded operator icons
+        const operatorIcons = {};
+        
+        function getOperatorIconUrl(operatorName) {
+            if (!operatorName || operatorName === 'Unknown') return null;
+            // Convert to lowercase and handle special cases
+            const name = operatorName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return `${R6_ICONS_CDN}${name}.svg`;
+        }
+        
+        async function preloadOperatorIcon(operatorName) {
+            const url = getOperatorIconUrl(operatorName);
+            if (!url || operatorIcons[operatorName]) return;
+            
+            try {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = url;
+                });
+                operatorIcons[operatorName] = img;
+            } catch (e) {
+                console.warn(`Failed to load icon for ${operatorName}`);
+            }
+        }
+        
+        let data = null;
+        let allPositions = [];
+        let maxTime = 0;
+        let currentTime = 0;
+        let isPlaying = false;
+        let animationId = null;
+        let lastFrameTime = 0;
+        
+        document.getElementById('jsonFile').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const text = await file.text();
+            data = JSON.parse(text);
+            await processData();
+            renderData();
+        });
+        
+        document.getElementById('playBtn').addEventListener('click', togglePlay);
+        document.getElementById('timeSlider').addEventListener('input', (e) => {
+            currentTime = (e.target.value / 100) * maxTime;
+            document.getElementById('currentTime').textContent = currentTime.toFixed(1) + 's';
+            renderAtTime(currentTime);
+        });
+        document.getElementById('showTrails').addEventListener('change', () => renderAtTime(currentTime));
+        document.getElementById('showDirection').addEventListener('change', () => renderAtTime(currentTime));
+        document.getElementById('yawOffset').addEventListener('change', () => renderAtTime(currentTime));
+        
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            document.getElementById('playBtn').textContent = isPlaying ? '⏸ Pause' : '▶ Play';
+            if (isPlaying) {
+                lastFrameTime = performance.now();
+                animate();
+            } else if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+        }
+        
+        function animate() {
+            if (!isPlaying) return;
+            
+            const now = performance.now();
+            const delta = (now - lastFrameTime) / 1000;
+            lastFrameTime = now;
+            
+            const speed = parseFloat(document.getElementById('speedSelect').value);
+            currentTime += delta * speed;
+            
+            if (currentTime >= maxTime) {
+                currentTime = 0;
+            }
+            
+            document.getElementById('timeSlider').value = (currentTime / maxTime) * 100;
+            document.getElementById('currentTime').textContent = currentTime.toFixed(1) + 's';
+            renderAtTime(currentTime);
+            
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        async function processData() {
+            const movements = data.movements || [];
+            const players = data.players || [];
+            allPositions = [];
+            maxTime = 0;
+            
+            // Build username to team mapping from players array (legacy)
+            const usernameToTeam = {};
+            players.forEach(p => {
+                usernameToTeam[p.username] = p.teamIndex;
+            });
+            
+            // Build team-based color assignment
+            let attackerIdx = 0, defenderIdx = 0;
+            const playerColors = {};
+            const playerOperators = {};
+            const playerTeams = {};
+            
+            // Preload operator icons
+            const iconPromises = [];
+            movements.forEach(m => {
+                if (m.operator) {
+                    iconPromises.push(preloadOperatorIcon(m.operator));
+                }
+            });
+            await Promise.all(iconPromises);
+            
+            const playerLoadouts = {};
+            
+            movements.forEach((m, idx) => {
+                const username = m.username;
+                // Use team from movement data if available, otherwise from players array
+                const team = m.team || (usernameToTeam[username] === 0 ? 'Attack' : usernameToTeam[username] === 1 ? 'Defense' : null);
+                const operator = m.operator || 'Unknown';
+                
+                playerOperators[idx] = operator;
+                playerTeams[idx] = team;
+                
+                // Capture loadout data if available
+                if (m.loadout) {
+                    playerLoadouts[idx] = m.loadout;
+                } else {
+                    // Try to get loadout from players array
+                    const player = players.find(p => p.username === username);
+                    if (player && player.loadout) {
+                        playerLoadouts[idx] = player.loadout;
+                    }
+                }
+                
+                if (username === 'Spectator Camera') {
+                    playerColors[idx] = spectatorColor;
+                } else if (team === 'Attack') {
+                    playerColors[idx] = attackerColors[attackerIdx % attackerColors.length];
+                    attackerIdx++;
+                } else if (team === 'Defense') {
+                    playerColors[idx] = defenderColors[defenderIdx % defenderColors.length];
+                    defenderIdx++;
+                } else {
+                    playerColors[idx] = colors[idx % colors.length];
+                }
+                
+                if (m.positions) {
+                    m.positions.forEach(p => {
+                        // Filter out positions with unreasonable times (> 1000s likely false positives)
+                        if (p.timeInSeconds <= 1000) {
+                            allPositions.push({ 
+                                ...p, 
+                                playerIndex: idx, 
+                                username: username,
+                                operator: operator,
+                                team: team,
+                                color: playerColors[idx]
+                            });
+                            if (p.timeInSeconds > maxTime) maxTime = p.timeInSeconds;
+                        }
+                    });
+                }
+            });
+            
+            window.playerColors = playerColors;
+            window.playerOperators = playerOperators;
+            window.playerTeams = playerTeams;
+            window.playerLoadouts = playerLoadouts;
+            
+            // Sort by time
+            allPositions.sort((a, b) => a.timeInSeconds - b.timeInSeconds);
+        }
+        
+        // Weapon identification: maps (operator, magazineCapacity) -> weapon name
+        // Since weapon names aren't in the replay binary, we infer from operator + mag capacity.
+        const WEAPON_DB = {
+            // --- ATTACKERS ---
+            SLEDGE:     { pri: {30:"L85A2",7:"M590A1"}, sec: {16:"P226 MK 25",16:"SMG-11"} },
+            THATCHER:   { pri: {30:"L85A2",25:"AR33"}, sec: {16:"P226 MK 25"} },
+            ASH:        { pri: {30:"R4-C",25:"G36C"}, sec: {7:"M45 MEUSOC",20:"5.7 USG"} },
+            THERMITE:   { pri: {30:"556XI"}, sec: {7:"M45 MEUSOC",20:"5.7 USG"} },
+            TWITCH:     { pri: {25:"F2",10:"417"}, sec: {16:"P9",6:"LFP586"} },
+            MONTAGNE:   { pri: {16:"P9",6:"LFP586"}, sec: {} },
+            GLAZ:       { pri: {10:"OTs-03"}, sec: {18:"PMM",18:"GSh-18"} },
+            FUZE:       { pri: {30:"AK-12",100:"6P41"}, sec: {18:"PMM",18:"GSh-18"} },
+            BLITZ:      { pri: {15:"P12"}, sec: {} },
+            IQ:         { pri: {30:"AUG A2",30:"552 Commando",50:"G8A1"}, sec: {16:"P12"} },
+            BUCK:       { pri: {30:"C8-SFW",20:"CAMRS"}, sec: {13:"Mk1 9mm",6:"GONNE-6"} },
+            BLACKBEARD: { pri: {20:"MK17 CQB",20:"SR-25"}, sec: {7:"D-50"} },
+            "CAPITÃO":  { pri: {30:"PARA-308",100:"M249"}, sec: {16:"PRB92",6:"GONNE-6"} },
+            HIBANA:     { pri: {20:"TYPE-89"}, sec: {25:"Bearing 9",16:"P229"} },
+            JACKAL:     { pri: {30:"C7E",50:"PDW9",7:"ITA12L"}, sec: {16:"USP40",6:"GONNE-6"} },
+            YING:       { pri: {80:"T-95 LSW",6:"SIX12"}, sec: {33:"Q-929"} },
+            ZOFIA:      { pri: {30:"M762",150:"LMG-E"}, sec: {16:"RG15"} },
+            DOKKAEBI:   { pri: {20:"Mk 14 EBR",2:"BOSG 12.2"}, sec: {32:"SMG-12",26:"C75 Auto"} },
+            LION:       { pri: {50:"V308",10:"417"}, sec: {16:"P9",6:"LFP586",6:"GONNE-6"} },
+            FINKA:      { pri: {30:"Spear .308",100:"6P41",8:"SASG-12"}, sec: {18:"PMM",18:"GSh-18",6:"GONNE-6"} },
+            MAVERICK:   { pri: {10:"AR-15.50",30:"M4"}, sec: {16:"1911 TACOPS"} },
+            NOMAD:      { pri: {40:"AK-74M",20:"ARX200"}, sec: {16:"PRB92",7:".44 Mag Semi-Auto"} },
+            GRIDLOCK:   { pri: {30:"F90",60:"M249 SAW"}, sec: {3:"Super Shorty",16:"SDP 9mm"} },
+            "NØKK":     { pri: {30:"FMG-9",6:"SIX12 SD"}, sec: {20:"5.7 USG",7:"D-50"} },
+            AMARU:      { pri: {50:"G8A1",7:"Supernova"}, sec: {32:"SMG-12",16:"ITA12S"} },
+            KALI:       { pri: {5:"CSRX 300"}, sec: {20:"SPSMG9",16:"P226 MK 25"} },
+            IANA:       { pri: {20:"ARX200",25:"G36C"}, sec: {7:"MK1 9mm",6:"GONNE-6"} },
+            ACE:        { pri: {30:"AK-12",7:"M1014"}, sec: {16:"P9"} },
+            ZERO:       { pri: {25:"SC3000K",30:"MP7"}, sec: {20:"5.7 USG",6:"GONNE-6"} },
+            FLORES:     { pri: {25:"AR33",20:"SR-25"}, sec: {18:"GSh-18"} },
+            OSA:        { pri: {30:"556XI",50:"PDW9"}, sec: {18:"PMM"} },
+            SENS:       { pri: {25:"POF-9",10:"417"}, sec: {18:"GSh-18",16:"SDP 9mm",6:"GONNE-6"} },
+            GRIM:       { pri: {30:"552 Commando",7:"SG-CQB"}, sec: {16:"P229",6:"GONNE-6"} },
+            BRAVA:      { pri: {30:"PARA-308",20:"CAMRS"}, sec: {16:"USP40",3:"Super Shorty"} },
+            RAM:        { pri: {30:"R4-C",150:"LMG-E"}, sec: {7:"MK1 9mm",16:"ITA12S"} },
+            STRIKER:    { pri: {30:"M4",50:"V308"}, sec: {16:"1911 TACOPS",5:"Bailiff 410"} },
+            DEIMOS:     { pri: {40:"AK-74M",7:"M590A1"}, sec: {7:"D-50",7:".44 Mag Semi-Auto"} },
+            SKOPOS:     { pri: {30:"MP7",20:"Mk 14 EBR"}, sec: {18:"PMM"} },
+            // --- DEFENDERS ---
+            SMOKE:      { pri: {30:"FMG-9",7:"M590A1"}, sec: {16:"P226 MK 25",16:"SMG-11"} },
+            MUTE:       { pri: {30:"MP5K",7:"M590A1"}, sec: {16:"P226 MK 25",16:"SMG-11"} },
+            CASTLE:     { pri: {25:"UMP45",7:"M1014"}, sec: {20:"5.7 USG",3:"Super Shorty"} },
+            PULSE:      { pri: {25:"UMP45",7:"M1014"}, sec: {7:"M45 MEUSOC",20:"5.7 USG"} },
+            DOC:        { pri: {30:"MP5",50:"P90",7:"SG-CQB"}, sec: {16:"P9",6:"LFP586",5:"Bailiff 410"} },
+            ROOK:       { pri: {30:"MP5",50:"P90",7:"SG-CQB"}, sec: {16:"P9",6:"LFP586"} },
+            KAPKAN:     { pri: {30:"9x19VSN",8:"SASG-12"}, sec: {18:"PMM",18:"GSh-18"} },
+            TACHANKA:   { pri: {70:"DP27",30:"9x19VSN"}, sec: {18:"PMM",18:"GSh-18",5:"Bearing 9"} },
+            "JÄGER":    { pri: {25:"416-C Carbine",5:"M870"}, sec: {16:"P12"} },
+            BANDIT:     { pri: {30:"MP7",5:"M870"}, sec: {16:"P12"} },
+            FROST:      { pri: {7:"Super 90",34:"9mm C1"}, sec: {7:"MK1 9mm",16:"ITA12S"} },
+            VALKYRIE:   { pri: {30:"MPX",7:"SPAS-12"}, sec: {7:"D-50",7:".44 Mag Semi-Auto"} },
+            CAVEIRA:    { pri: {30:"M12",7:"SPAS-15"}, sec: {12:"Luison"} },
+            ECHO:       { pri: {30:"MP5SD",7:"Supernova"}, sec: {16:"P229",25:"Bearing 9"} },
+            MIRA:       { pri: {25:"Vector .45 ACP",7:"ITA12L"}, sec: {16:"USP40",5:"ITA12S"} },
+            LESION:     { pri: {30:"T-5 SMG",6:"SIX12 SD"}, sec: {16:"Q-929"} },
+            ELA:        { pri: {40:"Scorpion EVO 3 A1",10:"FO-12"}, sec: {15:"RG15"} },
+            VIGIL:      { pri: {30:"K1A",2:"BOSG 12.2"}, sec: {32:"SMG-12",26:"C75 Auto"} },
+            MAESTRO:    { pri: {80:"ALDA 5.56",30:"ACS12"}, sec: {5:"Bailiff 410",7:"Keratos .357"} },
+            ALIBI:      { pri: {30:"Mx4 Storm",30:"ACS12"}, sec: {5:"Bailiff 410",7:"Keratos .357"} },
+            CLASH:      { pri: {}, sec: {20:"SPSMG9",16:"P-10C"} },
+            KAID:       { pri: {30:"AUG A3",10:"TCSG12"}, sec: {7:".44 Mag Semi-Auto",6:"LFP586"} },
+            MOZZIE:     { pri: {25:"Commando 9",15:"P10 RONI"}, sec: {16:"SDP 9mm"} },
+            WARDEN:     { pri: {30:"MPX",7:"M590A1"}, sec: {16:"P-10C",32:"SMG-12"} },
+            GOYO:       { pri: {25:"Vector .45 ACP",10:"TCSG12"}, sec: {16:"P229",5:"Bailiff 410"} },
+            WAMAI:      { pri: {30:"AUG A2",30:"MP5K"}, sec: {15:"P12",7:"Keratos .357"} },
+            ORYX:       { pri: {30:"T-5 SMG",7:"SPAS-12"}, sec: {5:"Bailiff 410",16:"USP40"} },
+            MELUSI:     { pri: {30:"T-5 SMG",7:"Super 90"}, sec: {15:"RG15",5:"Bailiff 410"} },
+            ARUNI:      { pri: {15:"P10 RONI",20:"Mk 14 EBR"}, sec: {16:"PRB92"} },
+            THUNDERBIRD: { pri: {30:"Spear .308",7:"SPAS-12"}, sec: {25:"Bearing 9",7:"Keratos .357"} },
+            THORN:      { pri: {32:"UZI",5:"M870"}, sec: {16:"1911 TACOPS",7:"Keratos .357"} },
+            AZAMI:      { pri: {30:"9x19VSN",30:"ACS12"}, sec: {7:"D-50"} },
+            SOLIS:      { pri: {50:"P90",8:"ITA12L"}, sec: {16:"SMG-11"} },
+            FENRIR:     { pri: {30:"MP7",8:"SASG-12"}, sec: {20:"5.7 USG",5:"Bailiff 410"} },
+            "TUBARÃO":  { pri: {30:"MPX",10:"AR-15.50"}, sec: {15:"P12",16:"P226 MK 25"} },
+            SENTRY:     { pri: {10:"AR-15.50",30:"M4"}, sec: {16:"P226 MK 25"} },
+            DENARI:     { pri: {40:"AK-74M",7:"M590A1"}, sec: {4:"CZ 75"} },
+        };
+
+        function getWeaponName(operatorName, magCapacity, isPrimary) {
+            if (!operatorName || magCapacity === undefined) return null;
+            const op = operatorName.toUpperCase();
+            const entry = WEAPON_DB[op];
+            if (!entry) return null;
+            const slot = isPrimary !== false ? entry.pri : entry.sec;
+            if (!slot) return null;
+            return slot[magCapacity] || null;
+        }
+
+        let ammoTimeline = []; // Sorted ammo updates for timeline playback
+        let ammoPanelCollapsed = false;
+        
+        function toggleAmmoPanel() {
+            ammoPanelCollapsed = !ammoPanelCollapsed;
+            const grid = document.getElementById('ammoGrid');
+            const arrow = document.getElementById('ammoToggle');
+            grid.style.display = ammoPanelCollapsed ? 'none' : 'grid';
+            arrow.classList.toggle('collapsed', ammoPanelCollapsed);
+        }
+        
+        function processAmmoTimeline() {
+            ammoTimeline = [];
+            const updates = data.ammoUpdates || [];
+            if (updates.length === 0) return;
+            
+            // Sort by timeInSeconds
+            ammoTimeline = updates.slice().sort((a, b) => a.timeInSeconds - b.timeInSeconds);
+            
+            // Show ammo panel
+            document.getElementById('ammoPanel').style.display = 'block';
+        }
+        
+        function getAmmoStateAtTime(time) {
+            // Get the latest ammo state for each player at the given time.
+            // Tracks primary weapon state and ability state separately.
+            const stateByPlayer = {};
+            const abilityByPlayer = {};
+            for (const update of ammoTimeline) {
+                if (update.timeInSeconds > time) break;
+                if (update.isAbility) {
+                    // Ability update (e.g. Hibana X-KAIROS, Ash breach rounds)
+                    abilityByPlayer[update.username] = update;
+                } else if (update.isPrimary !== false) {
+                    // Primary weapon update
+                    stateByPlayer[update.username] = update;
+                } else if (!stateByPlayer[update.username]) {
+                    stateByPlayer[update.username] = update;
+                }
+            }
+            return { weapons: stateByPlayer, abilities: abilityByPlayer };
+        }
+        
+        function renderAmmoPanel(time) {
+            if (ammoTimeline.length === 0) return;
+            
+            const { weapons: weaponState, abilities: abilityState } = getAmmoStateAtTime(time);
+            const grid = document.getElementById('ammoGrid');
+            const movements = data.movements || [];
+            const playerColorsMap = window.playerColors || {};
+            
+            // Build ammo cards for each player that has loadout or ammo data
+            const cards = [];
+            movements.forEach((m, idx) => {
+                const validCount = m.positions?.filter(p => p.timeInSeconds <= 1000).length || 0;
+                if (validCount === 0) return;
+                
+                const loadout = m.loadout || window.playerLoadouts?.[idx];
+                const ammoUpdate = weaponState[m.username];
+                const abilityUpdate = abilityState[m.username];
+                
+                if (!loadout && !ammoUpdate && !abilityUpdate) return;
+                
+                const team = m.team || window.playerTeams?.[idx] || '';
+                const teamClass = team === 'Attack' ? 'attack' : team === 'Defense' ? 'defense' : '';
+                const operator = m.operator || 'Unknown';
+                
+                // Current weapon values (from live ammo state if available, otherwise initial loadout)
+                const magAmmo = ammoUpdate ? ammoUpdate.magazineAmmo : (loadout?.magazineAmmo ?? 0);
+                const magCap = loadout?.magazineCapacity ?? (ammoUpdate?.magazineCapacity ?? 0);
+                const totalAmmo = ammoUpdate?.totalAmmo ?? (loadout?.totalAmmo ?? 0);
+                
+                // Ability charges
+                const initAbility = loadout?.abilityCharges ?? 0;
+                const currentAbility = abilityUpdate ? (abilityUpdate.magazineAmmo + (abilityUpdate.reserveAmmo || 0)) : initAbility;
+                
+                // Weapon name lookup
+                const priWeaponName = getWeaponName(operator, magCap, true) || 'Primary';
+                
+                // Initial values for percentage calculation
+                const initMagAmmo = loadout?.magazineAmmo ?? (magCap > 0 ? magCap + 1 : 0);
+                const initTotalAmmo = loadout?.totalAmmo ?? totalAmmo;
+                
+                let barsHtml = '';
+                
+                if (initMagAmmo > 0) {
+                    const pct = Math.min(100, (magAmmo / initMagAmmo) * 100);
+                    barsHtml += `
+                        <div class="ammo-bar-row">
+                            <span class="ammo-bar-label">${priWeaponName}</span>
+                            <div class="ammo-bar-track"><div class="ammo-bar-fill primary" style="width:${pct}%"></div></div>
+                            <span class="ammo-bar-value">${magAmmo}/${magCap}</span>
+                        </div>`;
+                }
+                if (initTotalAmmo > 0) {
+                    const pct = Math.min(100, (totalAmmo / initTotalAmmo) * 100);
+                    barsHtml += `
+                        <div class="ammo-bar-row">
+                            <span class="ammo-bar-label">Total</span>
+                            <div class="ammo-bar-track"><div class="ammo-bar-fill secondary" style="width:${pct}%"></div></div>
+                            <span class="ammo-bar-value">${totalAmmo}</span>
+                        </div>`;
+                }
+                if (initAbility > 0) {
+                    const pct = initAbility > 0 ? Math.min(100, (currentAbility / initAbility) * 100) : 100;
+                    barsHtml += `
+                        <div class="ammo-bar-row">
+                            <span class="ammo-bar-label">Ability</span>
+                            <div class="ammo-bar-track"><div class="ammo-bar-fill ability" style="width:${pct}%"></div></div>
+                            <span class="ammo-bar-value">${currentAbility}/${initAbility}</span>
+                        </div>`;
+                }
+                
+                cards.push(`
+                    <div class="ammo-card ${teamClass}">
+                        <div class="ammo-card-header">
+                            <span class="ammo-card-name">${m.username}</span>
+                            <span class="ammo-card-operator">${operator}</span>
+                        </div>
+                        <div class="ammo-bars">${barsHtml}</div>
+                    </div>
+                `);
+            });
+            
+            grid.innerHTML = cards.join('');
+        }
+        
+        function renderData() {
+            if (!data) return;
+            
+            // Process ammo timeline
+            processAmmoTimeline();
+            
+            // Update stats
+            document.getElementById('mapName').textContent = data.map?.name || '-';
+            document.getElementById('siteName').textContent = data.site || '-';
+            
+            const movements = data.movements || [];
+            let totalPositions = 0;
+            
+            movements.forEach((m) => {
+                // Count only reasonable positions (time < 1000s)
+                const validCount = m.positions?.filter(p => p.timeInSeconds <= 1000).length || 0;
+                totalPositions += validCount;
+            });
+            
+            document.getElementById('posCount').textContent = totalPositions;
+            
+            if (allPositions.length === 0) {
+                document.getElementById('info').style.display = 'none';
+                return;
+            }
+            
+            document.getElementById('info').style.display = 'block';
+            
+            // Calculate ranges from valid positions
+            const xs = allPositions.map(p => p.x);
+            const ys = allPositions.map(p => p.y);
+            const zs = allPositions.map(p => p.z);
+            
+            const minX = Math.min(...xs), maxX = Math.max(...xs);
+            const minY = Math.min(...ys), maxY = Math.max(...ys);
+            const minZ = Math.min(...zs), maxZ = Math.max(...zs);
+            
+            document.getElementById('xRange').textContent = `${minX.toFixed(1)} to ${maxX.toFixed(1)}`;
+            document.getElementById('yRange').textContent = `${minY.toFixed(1)} to ${maxY.toFixed(1)}`;
+            document.getElementById('zRange').textContent = `${minZ.toFixed(1)} to ${maxZ.toFixed(1)}`;
+            
+            // Update legend - only show entities with valid positions
+            const legend = document.getElementById('legend');
+            const playerColorsMap = window.playerColors || {};
+            const playerOperatorsMap = window.playerOperators || {};
+            const playerTeamsMap = window.playerTeams || {};
+            
+            const playerLoadoutsMap = window.playerLoadouts || {};
+            
+            legend.innerHTML = movements.map((m, idx) => {
+                const validCount = m.positions?.filter(p => p.timeInSeconds <= 1000).length || 0;
+                if (validCount === 0) return '';
+                const color = playerColorsMap[idx] || colors[idx % colors.length];
+                const operator = m.operator || playerOperatorsMap[idx] || 'Unknown';
+                const team = m.team || playerTeamsMap[idx] || '';
+                const rate = (validCount / maxTime).toFixed(1);
+                const iconUrl = getOperatorIconUrl(operator);
+                const teamClass = team === 'Attack' ? 'attacker' : team === 'Defense' ? 'defender' : '';
+                const loadout = m.loadout || playerLoadoutsMap[idx];
+                
+                let loadoutHtml = '';
+                if (loadout) {
+                    const tags = [];
+                    if (loadout.magazineAmmo !== undefined && loadout.magazineCapacity !== undefined) {
+                        const priName = getWeaponName(operator, loadout.magazineCapacity, true);
+                        const priLabel = priName ? `${priName} (${loadout.magazineAmmo}/${loadout.magazineCapacity})` : `Pri: ${loadout.magazineAmmo}/${loadout.magazineCapacity}`;
+                        tags.push(`<span class="loadout-tag primary" title="Primary weapon">${priLabel}</span>`);
+                    }
+                    if (loadout.secondaryMagAmmo > 0 && loadout.secondaryMagCapacity > 0) {
+                        const secName = getWeaponName(operator, loadout.secondaryMagCapacity, false);
+                        const secLabel = secName ? `${secName} (${loadout.secondaryMagAmmo}/${loadout.secondaryMagCapacity})` : `Sec: ${loadout.secondaryMagAmmo}/${loadout.secondaryMagCapacity}`;
+                        tags.push(`<span class="loadout-tag secondary" title="Secondary weapon">${secLabel}</span>`);
+                    }
+                    if (loadout.abilityCharges !== undefined && loadout.abilityCharges > 0) {
+                        tags.push(`<span class="loadout-tag ability" title="Operator ability charges">Ability: ${loadout.abilityCharges}</span>`);
+                    }
+                    if (tags.length > 0) {
+                        loadoutHtml = `<div class="legend-loadout">${tags.join('')}</div>`;
+                    }
+                }
+                
+                return `
+                    <div class="legend-item ${teamClass}">
+                        ${iconUrl ? `<img class="legend-icon" src="${iconUrl}" alt="${operator}" onerror="this.style.display='none'">` : ''}
+                        <div class="legend-color" style="background:${color}"></div>
+                        <div class="legend-info">
+                            <span class="legend-name">${m.username}</span>
+                            <span class="legend-operator">${operator}${team ? ` (${team})` : ''}</span>
+                            <span class="legend-stats">${validCount} pos, ${rate}/s</span>
+                            ${loadoutHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Store ranges for drawing
+            window.ranges = { minX, maxX, minY, maxY, minZ, maxZ };
+            
+            // Initial render at time 0
+            currentTime = 0;
+            renderAtTime(0);
+        }
+        
+        function renderAtTime(time) {
+            if (!window.ranges) return;
+            const { minX, maxX, minY, maxY, minZ, maxZ } = window.ranges;
+            
+            const showTrails = document.getElementById('showTrails').checked;
+            
+            // Get positions up to current time
+            const visiblePositions = showTrails 
+                ? allPositions.filter(p => p.timeInSeconds <= time)
+                : getLatestPositions(time);
+            
+            drawTopViewAnimated(visiblePositions, minX, maxX, minY, maxY, minZ, maxZ, time, showTrails);
+            drawSideViewAnimated(visiblePositions, minX, maxX, minZ, maxZ, time, showTrails);
+            
+            // Update ammo panel
+            renderAmmoPanel(time);
+        }
+        
+        function getLatestPositions(time) {
+            // Get only the most recent position for each player
+            const latestByPlayer = {};
+            for (const p of allPositions) {
+                if (p.timeInSeconds <= time) {
+                    latestByPlayer[p.playerIndex] = p;
+                }
+            }
+            return Object.values(latestByPlayer);
+        }
+        
+        function drawTopViewAnimated(positions, minX, maxX, minY, maxY, minZ, maxZ, time, showTrails) {
+            const canvas = document.getElementById('topView');
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            const padding = 40;
+            
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, w, h);
+            
+            const rangeX = maxX - minX || 1;
+            const rangeY = maxY - minY || 1;
+            const scale = Math.min((w - padding * 2) / rangeX, (h - padding * 2) / rangeY);
+            
+            // Draw grid
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            
+            // Draw axis labels
+            ctx.fillStyle = '#666';
+            ctx.font = '12px sans-serif';
+            ctx.fillText('X', w - 20, h / 2 + 4);
+            ctx.fillText('Y', w / 2 - 4, 15);
+            
+            // Draw center lines
+            ctx.strokeStyle = '#444';
+            ctx.beginPath();
+            ctx.moveTo(padding, h / 2);
+            ctx.lineTo(w - padding, h / 2);
+            ctx.moveTo(w / 2, padding);
+            ctx.lineTo(w / 2, h - padding);
+            ctx.stroke();
+            
+            const zRange = maxZ - minZ || 1;
+            
+            // Draw trail positions (faded)
+            if (showTrails) {
+                positions.forEach((p) => {
+                    const x = padding + (p.x - minX) * scale;
+                    const y = h - padding - (p.y - minY) * scale;
+                    
+                    const age = time - p.timeInSeconds;
+                    const alpha = Math.max(0.1, 0.5 - age / 60); // Fade over 60 seconds
+                    
+                    const color = p.color || colors[p.playerIndex % colors.length];
+                    ctx.fillStyle = color;
+                    ctx.globalAlpha = alpha;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+            
+            // Draw current positions (bright, larger) with operator icons
+            const latestByPlayer = {};
+            positions.forEach(p => { latestByPlayer[p.playerIndex] = p; });
+            
+            Object.values(latestByPlayer).forEach(p => {
+                const x = padding + (p.x - minX) * scale;
+                const y = h - padding - (p.y - minY) * scale;
+                
+                const color = p.color || colors[p.playerIndex % colors.length];
+                const operator = p.operator || window.playerOperators?.[p.playerIndex] || 'Unknown';
+                const icon = operatorIcons[operator];
+                
+                ctx.globalAlpha = 1;
+                
+                const showDirection = document.getElementById('showDirection').checked;
+                
+                // Draw facing direction arrow if yaw is available
+                if (showDirection && p.yaw !== undefined && p.yaw !== 0) {
+                    const yawOffset = parseFloat(document.getElementById('yawOffset').value);
+                    const yawRad = (p.yaw + yawOffset) * Math.PI / 180;
+                    const arrowLength = 18;
+                    const arrowHeadSize = 6;
+                    
+                    // Canvas Y is flipped (y = h - ...), so negate sin to match
+                    const endX = x + Math.cos(yawRad) * arrowLength;
+                    const endY = y - Math.sin(yawRad) * arrowLength;
+                    
+                    // Draw arrow line
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(x, y);
+                    ctx.lineTo(endX, endY);
+                    ctx.stroke();
+                    
+                    // Draw arrow head (use yawRad directly since we already computed the direction)
+                    // Negate the angle for Y-flip consistency
+                    const arrowAngle = Math.atan2(-(endY - y), endX - x);
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.moveTo(endX, endY);
+                    ctx.lineTo(
+                        endX - arrowHeadSize * Math.cos(arrowAngle - Math.PI / 6),
+                        endY - arrowHeadSize * Math.sin(arrowAngle - Math.PI / 6)
+                    );
+                    ctx.lineTo(
+                        endX - arrowHeadSize * Math.cos(arrowAngle + Math.PI / 6),
+                        endY - arrowHeadSize * Math.sin(arrowAngle + Math.PI / 6)
+                    );
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                
+                // Draw colored circle background
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, icon ? 12 : 6, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw outline
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Draw operator icon if available
+                if (icon) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(x, y, 10, 0, Math.PI * 2);
+                    ctx.clip();
+                    ctx.drawImage(icon, x - 10, y - 10, 20, 20);
+                    ctx.restore();
+                }
+                
+                // Draw username label
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px sans-serif';
+                ctx.globalAlpha = 0.9;
+                const labelOffset = icon ? 14 : 8;
+                ctx.fillText(p.username, x + labelOffset, y + 3);
+                
+                // Draw mini ammo bar below player dot if ammo data available
+                if (ammoTimeline.length > 0) {
+                    const ammoState = getAmmoStateAtTime(time);
+                    const playerAmmo = ammoState[p.username];
+                    if (playerAmmo && playerAmmo.magazineAmmo !== undefined) {
+                        const movements = data.movements || [];
+                        const loadout = movements[p.playerIndex]?.loadout || window.playerLoadouts?.[p.playerIndex];
+                        const initAmmo = loadout?.magazineAmmo ?? (loadout?.magazineCapacity ? loadout.magazineCapacity + 1 : 31);
+                        const pct = Math.min(1, playerAmmo.magazineAmmo / initAmmo);
+                        
+                        const barWidth = 20;
+                        const barHeight = 3;
+                        const barY = y + (icon ? 14 : 8);
+                        const barX = x - barWidth / 2;
+                        
+                        // Background
+                        ctx.globalAlpha = 0.6;
+                        ctx.fillStyle = '#333';
+                        ctx.fillRect(barX, barY, barWidth, barHeight);
+                        
+                        // Fill
+                        ctx.fillStyle = pct > 0.5 ? '#ff9f43' : pct > 0.2 ? '#ffcc5c' : '#ff6b6b';
+                        ctx.fillRect(barX, barY, barWidth * pct, barHeight);
+                        ctx.globalAlpha = 1;
+                    }
+                }
+            });
+            
+            ctx.globalAlpha = 1;
+            
+            // Draw scale
+            ctx.fillStyle = '#888';
+            ctx.font = '10px sans-serif';
+            ctx.fillText(`${minX.toFixed(0)}`, padding, h - padding + 15);
+            ctx.fillText(`${maxX.toFixed(0)}`, w - padding - 20, h - padding + 15);
+            ctx.fillText(`${minY.toFixed(0)}`, 5, h - padding);
+            ctx.fillText(`${maxY.toFixed(0)}`, 5, padding + 10);
+        }
+        
+        function drawSideViewAnimated(positions, minX, maxX, minZ, maxZ, time, showTrails) {
+            const canvas = document.getElementById('sideView');
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            const padding = 40;
+            
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, w, h);
+            
+            const rangeX = maxX - minX || 1;
+            const rangeZ = maxZ - minZ || 1;
+            const scaleX = (w - padding * 2) / rangeX;
+            const scaleZ = (h - padding * 2) / rangeZ;
+            
+            // Draw floor lines
+            ctx.strokeStyle = '#333';
+            ctx.setLineDash([5, 5]);
+            const floors = [
+                { z: 0, label: '1F' },
+                { z: 4.5, label: '2F' },
+                { z: 9, label: '3F' }
+            ];
+            
+            floors.forEach(floor => {
+                if (floor.z >= minZ && floor.z <= maxZ) {
+                    const y = h - padding - (floor.z - minZ) * scaleZ;
+                    ctx.beginPath();
+                    ctx.moveTo(padding, y);
+                    ctx.lineTo(w - padding, y);
+                    ctx.stroke();
+                    ctx.fillStyle = '#666';
+                    ctx.font = '10px sans-serif';
+                    ctx.fillText(floor.label, 5, y + 4);
+                }
+            });
+            ctx.setLineDash([]);
+            
+            // Draw axis labels
+            ctx.fillStyle = '#666';
+            ctx.font = '12px sans-serif';
+            ctx.fillText('X', w - 20, h - padding + 20);
+            ctx.fillText('Z', 5, 15);
+            
+            // Draw trail positions
+            if (showTrails) {
+                positions.forEach((p) => {
+                    const x = padding + (p.x - minX) * scaleX;
+                    const y = h - padding - (p.z - minZ) * scaleZ;
+                    
+                    const age = time - p.timeInSeconds;
+                    const alpha = Math.max(0.1, 0.4 - age / 60);
+                    
+                    const color = p.color || colors[p.playerIndex % colors.length];
+                    ctx.fillStyle = color;
+                    ctx.globalAlpha = alpha;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+            
+            // Draw current positions with operator icons
+            const latestByPlayer = {};
+            positions.forEach(p => { latestByPlayer[p.playerIndex] = p; });
+            
+            Object.values(latestByPlayer).forEach(p => {
+                const x = padding + (p.x - minX) * scaleX;
+                const y = h - padding - (p.z - minZ) * scaleZ;
+                
+                const color = p.color || colors[p.playerIndex % colors.length];
+                const operator = p.operator || window.playerOperators?.[p.playerIndex] || 'Unknown';
+                const icon = operatorIcons[operator];
+                
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, icon ? 10 : 6, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Draw operator icon if available
+                if (icon) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(x, y, 8, 0, Math.PI * 2);
+                    ctx.clip();
+                    ctx.drawImage(icon, x - 8, y - 8, 16, 16);
+                    ctx.restore();
+                }
+            });
+            
+            ctx.globalAlpha = 1;
+            
+            // Draw scale
+            ctx.fillStyle = '#888';
+            ctx.font = '10px sans-serif';
+            ctx.fillText(`${minX.toFixed(0)}`, padding, h - padding + 15);
+            ctx.fillText(`${maxX.toFixed(0)}`, w - padding - 20, h - padding + 15);
+            ctx.fillText(`${minZ.toFixed(1)}`, w - padding + 5, h - padding);
+            ctx.fillText(`${maxZ.toFixed(1)}`, w - padding + 5, padding + 10);
+        }
+    </script>
+</body>
+</html>
